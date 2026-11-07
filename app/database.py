@@ -25,17 +25,23 @@ if DATABASE_URL:
     # Supabase provides 'postgres://...', but SQLAlchemy requires 'postgresql://'
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    
-    # Ensure sslmode=require for cloud PostgreSQL (Supabase / Render / AWS)
-    if "sslmode" not in DATABASE_URL and not DATABASE_URL.startswith("sqlite"):
-        sep = "&" if "?" in DATABASE_URL else "?"
-        DATABASE_URL = f"{DATABASE_URL}{sep}sslmode=require"
 
+    # Switch to pg8000 dialect (pure Python, works on Vercel serverless)
+    # Replace postgresql:// or postgresql+psycopg2:// with postgresql+pg8000://
+    if "postgresql+pg8000://" not in DATABASE_URL:
+        DATABASE_URL = DATABASE_URL.replace("postgresql+psycopg2://", "postgresql+pg8000://")
+        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+pg8000://")
+
+    # pg8000 uses ssl=True query param instead of sslmode=require
+    if "ssl=" not in DATABASE_URL and "sslmode=" not in DATABASE_URL:
+        sep = "&" if "?" in DATABASE_URL else "?"
+        DATABASE_URL = f"{DATABASE_URL}{sep}ssl=true"
+
+    # Supabase transaction pooler (port 6543) requires NullPool — no persistent connections
+    from sqlalchemy.pool import NullPool
     engine = create_engine(
         DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10
+        poolclass=NullPool,
     )
 else:
     # Local SQLite persistent file fallback
