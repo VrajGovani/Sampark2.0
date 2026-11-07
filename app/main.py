@@ -12,7 +12,7 @@ async def lifespan(app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine)
     except Exception as e:
-        print(f"Startup notice (tables already exist or connecting asynchronously): {e}")
+        print(f"Startup notice: {e}")
     yield
 
 app = FastAPI(
@@ -21,6 +21,11 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Health check route for instant diagnostic
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "app": "Sampark 2.0", "message": "Serverless function is healthy"}
 
 # Exception handler for login redirects
 @app.exception_handler(HTTPException)
