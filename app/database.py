@@ -20,12 +20,16 @@ if DATABASE_URL:
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     
-    # Supabase connection with connection pooling & auto-reconnect
+    # Ensure sslmode=require for cloud PostgreSQL (Supabase / Render / AWS)
+    if "sslmode" not in DATABASE_URL and not DATABASE_URL.startswith("sqlite"):
+        sep = "&" if "?" in DATABASE_URL else "?"
+        DATABASE_URL = f"{DATABASE_URL}{sep}sslmode=require"
+
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20
+        pool_size=5,
+        max_overflow=10
     )
 else:
     # Local SQLite persistent file fallback

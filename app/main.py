@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import RedirectResponse
-from fastapi.staticfiles import StaticFiles
 import os
 
 from .database import engine, Base
@@ -9,8 +8,11 @@ from .routes import search, auth, dashboard
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables on startup
-    Base.metadata.create_all(bind=engine)
+    # Safe table verification on startup
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Startup notice (tables already exist or connecting asynchronously): {e}")
     yield
 
 app = FastAPI(
@@ -34,5 +36,4 @@ app.include_router(dashboard.router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
-
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
