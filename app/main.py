@@ -1,25 +1,13 @@
-from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import RedirectResponse
 import os
 
-from .database import engine, Base
 from .routes import search, auth, dashboard
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Safe table verification on startup
-    try:
-        Base.metadata.create_all(bind=engine)
-    except Exception as e:
-        print(f"Startup notice: {e}")
-    yield
 
 app = FastAPI(
     title="Sampark 2.0 - Vehicle Contact Directory",
     description="Connect with vehicle owners instantly via plate lookup",
-    version="1.0.0",
-    lifespan=lifespan
+    version="1.0.0"
 )
 
 # Health check route for instant diagnostic
@@ -41,4 +29,6 @@ app.include_router(dashboard.router)
 
 if __name__ == "__main__":
     import uvicorn
+    from .database import engine, Base
+    Base.metadata.create_all(bind=engine)
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

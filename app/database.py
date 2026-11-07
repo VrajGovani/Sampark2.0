@@ -1,16 +1,22 @@
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Anchor to the project root directory
+# Anchor to project root
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Automatically load variables from .env file if present
-load_dotenv(BASE_DIR / ".env")
+# Automatically load variables from .env file if present locally
+if (BASE_DIR / ".env").exists():
+    load_dotenv(BASE_DIR / ".env")
 
-DEFAULT_DB_FILE = BASE_DIR / "sampark.db"
+# On Vercel / Linux Lambda, fallback SQLite must use /tmp (writable), never /var/task (read-only)
+if sys.platform != "win32":
+    DEFAULT_DB_FILE = Path("/tmp/sampark.db")
+else:
+    DEFAULT_DB_FILE = BASE_DIR / "sampark.db"
 
 # Check if environment provides Supabase / PostgreSQL DATABASE_URL
 DATABASE_URL = os.getenv("DATABASE_URL")
