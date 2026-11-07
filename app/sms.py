@@ -36,51 +36,7 @@ def send_real_otp(phone: str, otp_code: str) -> dict:
     full_intl_phone = "+91" + clean_phone if len(clean_phone) == 10 else ("+" + clean_phone if not clean_phone.startswith("+") else clean_phone)
     message_text = f"🔐 Your Sampark verification code is: {otp_code}. Valid for 10 minutes."
 
-    # 1. Try CallMeBot (100% Free WhatsApp OTP Delivery)
-    callmebot_key = os.getenv("CALLMEBOT_API_KEY", "").strip()
-    if callmebot_key:
-        try:
-            encoded_text = urllib.parse.quote(message_text)
-            url = f"https://api.callmebot.com/whatsapp.php?phone={full_intl_phone}&text={encoded_text}&apikey={callmebot_key}"
-            with httpx.Client(timeout=12) as client:
-                resp = client.get(url)
-                resp_lower = resp.text.lower()
-                if resp.status_code == 200 and ("queued" in resp_lower or "sent" in resp_lower or "success" in resp_lower or "ok" in resp_lower):
-                    print(f"\n✅ [CallMeBot] Real WhatsApp OTP delivered to {full_intl_phone} successfully!\n")
-                    return {"success": True, "provider": "CallMeBot", "details": resp.text}
-                else:
-                    print(f"⚠️ [CallMeBot Notice] HTTP {resp.status_code}: {resp.text}")
-                    # If it says 'Message queued' in some other phrasing, still treat as success
-                    if "error" not in resp_lower and "not found" not in resp_lower and resp.status_code == 200:
-                        return {"success": True, "provider": "CallMeBot", "details": resp.text}
-        except Exception as e:
-            print(f"⚠️ [CallMeBot Exception] {e}")
-
-    # 2. Try Textbee.dev (Free Android SIM Gateway)
-    textbee_key = os.getenv("TEXTBEE_API_KEY", "").strip()
-    textbee_dev = os.getenv("TEXTBEE_DEVICE_ID", "").strip()
-    if textbee_key and textbee_dev:
-        try:
-            url = f"https://api.textbee.dev/api/v1/gateway/devices/{textbee_dev}/send-sms"
-            headers = {
-                "x-api-key": textbee_key,
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "recipients": [full_intl_phone],
-                "message": message_text
-            }
-            with httpx.Client(timeout=10) as client:
-                resp = client.post(url, headers=headers, json=payload)
-                if resp.status_code in (200, 201):
-                    print(f"✅ [Textbee Android Gateway] Free real carrier SMS sent to {clean_phone}!")
-                    return {"success": True, "provider": "Textbee", "details": resp.json()}
-                else:
-                    print(f"⚠️ [Textbee Error] {resp.text}")
-        except Exception as e:
-            print(f"⚠️ [Textbee Exception] {e}")
-
-    # 3. Try Fast2SMS (Commercial API)
+    # 1. Try Fast2SMS
     fast2sms_key = os.getenv("FAST2SMS_API_KEY", "").strip()
     if fast2sms_key:
         try:
@@ -101,9 +57,28 @@ def send_real_otp(phone: str, otp_code: str) -> dict:
                     print(f"✅ [Fast2SMS] Real OTP sent to {clean_phone} successfully!")
                     return {"success": True, "provider": "Fast2SMS", "details": data}
                 else:
-                    print(f"⚠️ [Fast2SMS Error] {data}")
+                    print(f"⚠️ [Fast2SMS Notice] {data.get('message', data)}")
         except Exception as e:
             print(f"⚠️ [Fast2SMS Exception] {e}")
+
+    # 2. Try CallMeBot (100% Free WhatsApp OTP Delivery)
+    callmebot_key = os.getenv("CALLMEBOT_API_KEY", "").strip()
+    if callmebot_key:
+        try:
+            encoded_text = urllib.parse.quote(message_text)
+            url = f"https://api.callmebot.com/whatsapp.php?phone={full_intl_phone}&text={encoded_text}&apikey={callmebot_key}"
+            with httpx.Client(timeout=12) as client:
+                resp = client.get(url)
+                resp_lower = resp.text.lower()
+                if resp.status_code == 200 and ("queued" in resp_lower or "sent" in resp_lower or "success" in resp_lower or "ok" in resp_lower):
+                    print(f"\n✅ [CallMeBot] Real WhatsApp OTP delivered to {full_intl_phone} successfully!\n")
+                    return {"success": True, "provider": "CallMeBot", "details": resp.text}
+                else:
+                    print(f"⚠️ [CallMeBot Notice] HTTP {resp.status_code}: {resp.text}")
+                    if "error" not in resp_lower and "not found" not in resp_lower and resp.status_code == 200:
+                        return {"success": True, "provider": "CallMeBot", "details": resp.text}
+        except Exception as e:
+            print(f"⚠️ [CallMeBot Exception] {e}")
 
     # 4. Console Fallback
     print("\n" + "=" * 55)
