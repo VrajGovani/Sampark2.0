@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+
+{% block title %}Owner Dashboard - Sampark{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+
+    <!-- Header Section -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-8 border-b border-slate-200">
+        <div>
+            <div class="flex items-center gap-2">
+                <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                    Welcome, {{ current_user.name }}!
+                </h1>
+                <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1">
+                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                    Phone Verified
+                </span>
+            </div>
+            <p class="text-sm text-slate-500 mt-1">
+                Account Phone: <span class="font-semibold text-slate-700">{{ current_user.phone }}</span>
+            </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <a href="/" class="text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-xl transition flex items-center gap-1.5">
+                <i data-lucide="search" class="w-4 h-4"></i>
+                <span>Open Public Search</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Grid: Left Form + Right Vehicles & Alerts -->
+    <div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        <!-- Form Column (1 Col) -->
+        <div class="lg:col-span-1 space-y-6">
+            <!-- Add Vehicle Card -->
+            <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                        <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-900">Add New Vehicle</h2>
+                </div>
+                <p class="text-xs text-slate-500 mb-5">
+                    Link a vehicle plate to your phone number so searchers can reach you in parking issues or emergencies.
+                </p>
+
+                <form action="/dashboard/vehicle/add" method="POST" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">
+                            Vehicle Plate Number *
+                        </label>
+                        <input
+                            type="text"
+                            name="vehicle_number"
+                            required
+                            placeholder="e.g. DL 01 AB 1234"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 font-bold uppercase tracking-wider transition"
+                        />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">
+                            Contact Phone to Display *
+                        </label>
+                        <input
+                            type="text"
+                            name="contact_phone"
+                            value="{{ current_user.phone }}"
+                            required
+                            placeholder="e.g. 9876543210"
+                            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 font-medium transition"
+                        />
+                        <p class="text-[11px] text-slate-400 mt-1">This will be masked (+91 ********XX) on screen, but callable directly.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">
+                            Optional Note / Instructions
+                        </label>
+                        <textarea
+                            name="notes"
+                            rows="2"
+                            placeholder="e.g. Please call if blocking your car"
+                            class="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 text-sm transition"
+                        ></textarea>
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 text-sm"
+                    >
+                        <i data-lucide="check" class="w-4 h-4"></i>
+                        <span>Register Vehicle</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Recent Lookup Activity Card -->
+            <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                            <i data-lucide="bell" class="w-4 h-4"></i>
+                        </div>
+                        <h3 class="text-sm font-bold text-slate-900">Lookup Alerts</h3>
+                    </div>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                        {{ recent_alerts|length }} Total
+                    </span>
+                </div>
+
+                {% if recent_alerts %}
+                    <div class="space-y-3">
+                        {% for alert in recent_alerts %}
+                        <div class="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs space-y-1">
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-slate-800 font-mono">{{ alert.vehicle.vehicle_number }}</span>
+                                <span class="text-[10px] text-slate-400">{{ alert.created_at.strftime('%d %b, %I:%M %p') }}</span>
+                            </div>
+                            <p class="text-slate-500">
+                                🔍 Someone searched this vehicle's contact info.
+                            </p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-xs text-slate-400 text-center py-4">
+                        No one has looked up your vehicles yet. When someone searches, alerts will appear here.
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Registered Vehicles List (2 Cols) -->
+        <div class="lg:col-span-2 space-y-5">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="car" class="w-5 h-5 text-indigo-600"></i>
+                    <span>Your Registered Vehicles ({{ vehicles|length }})</span>
+                </h2>
+            </div>
+
+            {% if vehicles %}
+                <div class="space-y-4">
+                    {% for v in vehicles %}
+                    <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm hover:shadow transition space-y-4">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <!-- License Plate Badge -->
+                                <div class="inline-flex items-center border-2 border-slate-900 bg-amber-300 text-slate-900 font-black rounded-lg overflow-hidden text-sm shadow-sm">
+                                    <div class="bg-blue-800 text-white text-[9px] font-bold px-2 py-1.5 border-r border-slate-900 leading-none">
+                                        IND
+                                    </div>
+                                    <div class="px-3.5 py-1 tracking-widest font-mono">
+                                        {{ v.vehicle_number }}
+                                    </div>
+                                </div>
+
+                                <!-- Status Badge -->
+                                {% if v.is_active %}
+                                    <span class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                                        Active
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
+                                        Paused (Hidden)
+                                    </span>
+                                {% endif %}
+                            </div>
+
+                            <span class="text-xs text-slate-400">Added {{ v.created_at.strftime('%d %b %Y') }}</span>
+                        </div>
+
+                        <!-- Editable Contact Details Form -->
+                        <form action="/dashboard/vehicle/edit/{{ v.id }}" method="POST" class="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                        Display Contact Phone
+                                    </label>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                                            <i data-lucide="phone" class="w-3.5 h-3.5"></i>
+                                        </span>
+                                        <input
+                                            type="text"
+                                            name="contact_phone"
+                                            value="{{ v.contact_phone }}"
+                                            required
+                                            class="w-full pl-9 pr-3 py-1.5 bg-white rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                        Parking Note / Instruction
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="notes"
+                                        value="{{ v.notes if v.notes else '' }}"
+                                        placeholder="e.g. Call if parked in front"
+                                        class="w-full px-3 py-1.5 bg-white rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:border-indigo-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="flex justify-end">
+                                <button
+                                    type="submit"
+                                    class="text-xs font-bold text-indigo-700 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition flex items-center gap-1"
+                                >
+                                    <i data-lucide="save" class="w-3.5 h-3.5"></i>
+                                    <span>Save Changes</span>
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Action Toolbar -->
+                        <div class="flex items-center flex-wrap justify-between gap-3 pt-2">
+                            <div class="flex items-center gap-2">
+                                <!-- QR Sticker Button -->
+                                <a
+                                    href="/sticker/{{ v.vehicle_number }}"
+                                    class="text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl transition flex items-center gap-1.5"
+                                    title="Print or view windshield QR sticker"
+                                >
+                                    <i data-lucide="qr-code" class="w-3.5 h-3.5 text-indigo-600"></i>
+                                    <span>Print QR Sticker</span>
+                                </a>
+
+                                <!-- Test Search Button -->
+                                <a
+                                    href="/search?q={{ v.vehicle_number }}"
+                                    class="text-xs font-semibold text-slate-600 hover:text-indigo-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl transition flex items-center gap-1.5"
+                                    title="See what someone sees when searching this vehicle"
+                                >
+                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                    <span>Preview Search</span>
+                                </a>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <!-- Pause / Activate Toggle -->
+                                <form action="/dashboard/vehicle/toggle/{{ v.id }}" method="POST">
+                                    <button
+                                        type="submit"
+                                        class="text-xs font-semibold {% if v.is_active %}text-amber-700 bg-amber-50 hover:bg-amber-100{% else %}text-emerald-700 bg-emerald-50 hover:bg-emerald-100{% endif %} px-3 py-1.5 rounded-xl transition flex items-center gap-1"
+                                    >
+                                        <i data-lucide="{% if v.is_active %}pause{% else %}play{% endif %}" class="w-3 h-3"></i>
+                                        <span>{% if v.is_active %}Pause Lookup{% else %}Resume Lookup{% endif %}</span>
+                                    </button>
+                                </form>
+
+                                <!-- Delete Button -->
+                                <form action="/dashboard/vehicle/delete/{{ v.id }}" method="POST" onsubmit="return confirm('Are you sure you want to remove vehicle {{ v.vehicle_number }}?');">
+                                    <button
+                                        type="submit"
+                                        class="text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl transition flex items-center gap-1"
+                                        title="Remove this vehicle"
+                                    >
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                        <span>Delete</span>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="bg-white rounded-3xl border border-dashed border-slate-300 p-12 text-center">
+                    <div class="w-14 h-14 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <i data-lucide="car" class="w-7 h-7"></i>
+                    </div>
+                    <h3 class="text-base font-bold text-slate-700">No vehicles registered yet</h3>
+                    <p class="text-sm text-slate-400 mt-1 max-w-sm mx-auto">
+                        Use the form on the left to add your first vehicle plate number and contact details.
+                    </p>
+                </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Windshield QR Sticker - {{ vehicle.vehicle_number }}</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                background: white !important;
+                padding: 0 !important;
+            }
+            .sticker-card {
+                border: 2px dashed #94a3b8 !important;
+                box-shadow: none !important;
+                margin: 0 auto !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen py-10 px-4 flex flex-col items-center justify-center font-sans antialiased">
+
+    <!-- Action Toolbar (Hidden during print) -->
+    <div class="no-print max-w-md w-full mb-6 flex items-center justify-between gap-3">
+        <a href="/dashboard" class="text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white px-3.5 py-2 rounded-xl shadow-sm border border-slate-200 flex items-center gap-1.5 transition">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            <span>Back to Dashboard</span>
+        </a>
+
+        <div class="flex items-center gap-2">
+            <button
+                onclick="window.print()"
+                class="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl shadow transition flex items-center gap-1.5"
+            >
+                <i data-lucide="printer" class="w-4 h-4"></i>
+                <span>Print Sticker</span>
+            </button>
+            <a
+                href="/qr/{{ vehicle.vehicle_number }}"
+                download="sampark_qr_{{ vehicle.vehicle_number }}.png"
+                class="text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 px-3.5 py-2 rounded-xl shadow-sm border border-slate-200 flex items-center gap-1.5 transition"
+            >
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span>Download QR</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Printable Windshield Sticker (Fits on a standard dash/windshield card) -->
+    <div class="sticker-card bg-white w-full max-w-sm rounded-3xl border-2 border-slate-900 p-6 text-center shadow-2xl relative overflow-hidden">
+        
+        <!-- Top Header: Brand -->
+        <div class="flex items-center justify-center gap-2 mb-3">
+            <div class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-xs">
+                <i data-lucide="car" class="w-4 h-4"></i>
+            </div>
+            <div class="text-left leading-tight">
+                <span class="text-lg font-black tracking-tight text-slate-900">Sampark<span class="text-indigo-600">.</span></span>
+                <span class="block text-[8px] uppercase tracking-widest text-slate-500 font-bold">Emergency Vehicle Contact</span>
+            </div>
+        </div>
+
+        <p class="text-[11px] font-semibold text-slate-600 mb-4 px-2">
+            Car blocking you or an emergency? Scan this QR code to reach the vehicle owner instantly.
+        </p>
+
+        <!-- QR Code Container -->
+        <div class="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 inline-block shadow-inner">
+            <img
+                src="/qr/{{ vehicle.vehicle_number }}"
+                alt="QR Code for {{ vehicle.vehicle_number }}"
+                class="w-48 h-48 mx-auto rounded-lg"
+            />
+        </div>
+
+        <!-- Vehicle License Plate Display -->
+        <div class="mt-5 inline-flex items-center border-2 border-slate-900 bg-amber-300 text-slate-900 font-black rounded-lg overflow-hidden shadow-sm">
+            <div class="bg-blue-800 text-white text-[9px] font-bold px-2 py-1.5 flex flex-col items-center justify-center border-r border-slate-900 leading-none">
+                <span>IND</span>
+            </div>
+            <div class="px-4 py-1 text-base tracking-widest font-mono">
+                {{ vehicle.vehicle_number }}
+            </div>
+        </div>
+
+        <!-- Instructions Footer -->
+        <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[10px] text-slate-400 font-medium">
+            <i data-lucide="scan-line" class="w-3.5 h-3.5 text-indigo-600"></i>
+            <span>Scan with any camera app • No app install required</span>
+        </div>
+    </div>
+
+    <!-- Print instructions (Hidden during print) -->
+    <p class="no-print text-xs text-slate-400 text-center mt-4 max-w-sm">
+        💡 Tip: Print this sticker and place it on your car dashboard or inside corner of your windshield.
+    </p>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
+
