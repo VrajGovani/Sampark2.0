@@ -7,20 +7,39 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-STARTUP_ERROR = None
-STARTUP_TRACE = None
+# ASGI Middleware to correct rewritten paths on Vercel
+class VercelPathFixMiddleware:
+    def __init__(self, asgi_app):
+        self.asgi_app = asgi_app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            headers = dict(scope.get("headers", []))
+            # Vercel sends the original requested URL path in x-matched-path
+            matched_path = headers.get(b"x-matched-path")
+            if matched_path:
+                scope["path"] = matched_path.decode("utf-8")
+            else:
+                raw_path = scope.get("path", "")
+                for prefix in ("/api/index.py", "/api/index"):
+                    if raw_path.startswith(prefix):
+                        rest = raw_path[len(prefix):]
+                        scope["path"] = rest if rest else "/"
+                        break
+        await self.asgi_app(scope, receive, send)
 
 try:
-    from app.main import app
+    from app.main import app as fastapi_app
+    app = VercelPathFixMiddleware(fastapi_app)
 except Exception as e:
     STARTUP_ERROR = str(e)
     STARTUP_TRACE = traceback.format_exc()
     print("Vercel Startup Error:\n", STARTUP_TRACE)
 
-    from fastapi import FastAPI, Request
+    from fastapi import FastAPI
     from fastapi.responses import HTMLResponse
 
-    app = FastAPI()
+    err_app = FastAPI()
 
     ERROR_HTML = f"""
     <html><body style="font-family:monospace;padding:2em;background:#1e1e1e;color:#f8f8f8">
@@ -32,10 +51,8 @@ except Exception as e:
     </body></html>
     """
 
-    @app.get("/")
-    def root_error():
-        return HTMLResponse(content=ERROR_HTML, status_code=500)
-
-    @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+    @err_app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
     def catch_all(path: str = ""):
         return HTMLResponse(content=ERROR_HTML, status_code=500)
+
+    app = VercelPathFixMiddleware(err_app)
