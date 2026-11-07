@@ -4,6 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.pool import NullPool
 
 # Anchor to project root
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,19 +27,20 @@ if DATABASE_URL:
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-    # Switch to pg8000 dialect (pure Python, works on Vercel serverless)
-    # Replace postgresql:// or postgresql+psycopg2:// with postgresql+pg8000://
-    if "postgresql+pg8000://" not in DATABASE_URL:
-        DATABASE_URL = DATABASE_URL.replace("postgresql+psycopg2://", "postgresql+pg8000://")
-        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+pg8000://")
+    # Standardize dialect to postgresql://
+    for alt in ("postgresql+pg8000://", "postgresql+psycopg2://"):
+        if alt in DATABASE_URL:
+            DATABASE_URL = DATABASE_URL.replace(alt, "postgresql://")
 
-    # pg8000 uses ssl=True query param instead of sslmode=require
-    if "ssl=" not in DATABASE_URL and "sslmode=" not in DATABASE_URL:
+    # Clean up any misplaced ssl=true from earlier
+    DATABASE_URL = DATABASE_URL.replace("&ssl=true", "").replace("?ssl=true", "")
+
+    # Ensure sslmode=require for cloud PostgreSQL (Supabase / Render)
+    if "sslmode" not in DATABASE_URL and not DATABASE_URL.startswith("sqlite"):
         sep = "&" if "?" in DATABASE_URL else "?"
-        DATABASE_URL = f"{DATABASE_URL}{sep}ssl=true"
+        DATABASE_URL = f"{DATABASE_URL}{sep}sslmode=require"
 
-    # Supabase transaction pooler (port 6543) requires NullPool — no persistent connections
-    from sqlalchemy.pool import NullPool
+    # Use NullPool for serverless / Supabase transaction pooler (port 6543)
     engine = create_engine(
         DATABASE_URL,
         poolclass=NullPool,
