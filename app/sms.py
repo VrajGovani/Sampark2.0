@@ -27,43 +27,16 @@ def clean_phone_for_sms(phone: str) -> str:
 def send_real_otp(phone: str, otp_code: str) -> dict:
     """
     Sends real OTP using available free or commercial gateways:
-    1. Textbee.dev (Free Android SIM Gateway - uses your Airtel SIM / 100 free SMS/day)
-    2. Fast2SMS
-    3. CallMeBot (WhatsApp)
+    1. CallMeBot (100% Free WhatsApp OTP)
+    2. Textbee.dev (Free Android SMS Gateway)
+    3. Fast2SMS / Twilio
     4. Console fallback
     """
     clean_phone = clean_phone_for_sms(phone)
     full_intl_phone = "+91" + clean_phone if len(clean_phone) == 10 else ("+" + clean_phone if not clean_phone.startswith("+") else clean_phone)
     message_text = f"🔐 Your Sampark verification code is: {otp_code}. Valid for 10 minutes."
 
-    # 1. Try TextBee (Android Phone / Airtel SIM Gateway)
-    textbee_key = os.getenv("TEXTBEE_API_KEY", "").strip()
-    textbee_dev = os.getenv("TEXTBEE_DEVICE_ID", "").strip()
-    if textbee_key:
-        try:
-            url = "https://api.textbee.dev/api/v1/gateway/send-sms"
-            headers = {
-                "x-api-key": textbee_key,
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "recipients": [full_intl_phone],
-                "message": message_text
-            }
-            if textbee_dev:
-                payload["deviceId"] = textbee_dev
-
-            with httpx.Client(timeout=10) as client:
-                resp = client.post(url, headers=headers, json=payload)
-                if resp.status_code in (200, 201):
-                    print(f"\n✅ [TextBee] Real SMS sent from your Airtel SIM to {full_intl_phone}!\n")
-                    return {"success": True, "provider": "Textbee", "details": resp.json()}
-                else:
-                    print(f"⚠️ [TextBee Notice] HTTP {resp.status_code}: {resp.text}")
-        except Exception as e:
-            print(f"⚠️ [TextBee Exception] {e}")
-
-    # 2. Try Fast2SMS
+    # 1. Try Fast2SMS
     fast2sms_key = os.getenv("FAST2SMS_API_KEY", "").strip()
     if fast2sms_key:
         try:
@@ -88,7 +61,7 @@ def send_real_otp(phone: str, otp_code: str) -> dict:
         except Exception as e:
             print(f"⚠️ [Fast2SMS Exception] {e}")
 
-    # 3. Try CallMeBot (Free WhatsApp OTP Delivery)
+    # 2. Try CallMeBot (100% Free WhatsApp OTP Delivery)
     callmebot_key = os.getenv("CALLMEBOT_API_KEY", "").strip()
     if callmebot_key:
         try:
@@ -110,8 +83,6 @@ def send_real_otp(phone: str, otp_code: str) -> dict:
     # 4. Console Fallback
     print("\n" + "=" * 55)
     print(f"📱 [TEST MODE] Generated OTP for {clean_phone}: {otp_code}")
-    print("=" * 55 + "\n")
-    return {"success": False, "provider": "Console", "demo": True}
     print(f"   (To get real WhatsApp OTP, set CALLMEBOT_API_KEY in .env)")
     print("=" * 55 + "\n")
     return {"success": False, "provider": "Console", "demo": True}

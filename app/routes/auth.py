@@ -1,4 +1,5 @@
 import random
+import re
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional
@@ -16,6 +17,7 @@ from ..auth import (
     clean_vehicle_number,
 )
 from ..sms import send_real_otp
+from ..email_service import send_real_otp_email
 
 router = APIRouter()
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -26,10 +28,21 @@ def is_safe_redirect(url: Optional[str]) -> bool:
     return bool(url and url.startswith("/") and not url.startswith("//"))
 
 def mask_phone_for_display(phone: str) -> str:
-    cleaned = phone.strip()
+    cleaned = (phone or "").strip()
     if len(cleaned) >= 4:
         return f"+91 ********{cleaned[-2:]}"
     return "+91 **********"
+
+def mask_email_for_display(email: str) -> str:
+    cleaned = (email or "").strip().lower()
+    if not cleaned or "@" not in cleaned:
+        return ""
+    user_part, domain_part = cleaned.split("@", 1)
+    if len(user_part) <= 2:
+        masked_user = user_part[0] + "***"
+    else:
+        masked_user = user_part[0] + "***" + user_part[-1]
+    return f"{masked_user}@{domain_part}"
 
 @router.get("/login")
 def login_page(
@@ -56,13 +69,17 @@ def login_page(
 @router.post("/login")
 def login_submit(
     request: Request,
-    phone: str = Form(...),
+    phone: str = Form(...),  # Accepts phone number OR email
     password: str = Form(...),
     next: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
-    cleaned_phone = phone.strip()
-    user = db.query(User).filter(User.phone == cleaned_phone).first()
+    identifier = phone.strip()
+    
+    # Allow logging in with phone or email
+    user = db.query(User).filter(
+        (User.phone == identifier) | (User.email == identifier.lower())
+    ).first()
 
     if not user or not verify_password(password, user.hashed_password):
         return templates.TemplateResponse(
@@ -71,7 +88,7 @@ def login_submit(
                 "request": request,
                 "current_user": None,
                 "next_url": next or "",
-                "error": "Invalid phone number or password. Please try again."
+                "error": "Invalid phone number / email or password. Please try again."
             },
             status_code=400
         )
@@ -120,6 +137,7 @@ def register_page(
 def register_submit(
     request: Request,
     name: str = Form(...),
+    email: str = Form(...),
     phone: str = Form(...),
     password: str = Form(...),
     vehicle_number: Optional[str] = Form(None),
@@ -127,11 +145,26 @@ def register_submit(
     db: Session = Depends(get_db)
 ):
     cleaned_name = name.strip()
+    cleaned_email = email.strip().lower()
     cleaned_phone = phone.strip()
 
+    # Validate email
+    if not re.match(r"[^@]+@[^@]+\.[^@]+", cleaned_email):
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request,
+                "current_user": None,
+                "prefill_vehicle": vehicle_number or "",
+                "next_url": next or "",
+                "error": "Please enter a valid email address."
+            },
+            status_code=400
+        )
+
     # Check if user with phone already exists
-    existing_user = db.query(User).filter(User.phone == cleaned_phone).first()
-    if existing_user:
+    existing_phone = db.query(User).filter(User.phone == cleaned_phone).first()
+    if existing_phone:
         return templates.TemplateResponse(
             "register.html",
             {
@@ -140,6 +173,21 @@ def register_submit(
                 "prefill_vehicle": vehicle_number or "",
                 "next_url": next or "",
                 "error": f"An account with phone {cleaned_phone} already exists. Please sign in instead."
+            },
+            status_code=400
+        )
+
+    # Check if user with email already exists
+    existing_email = db.query(User).filter(User.email == cleaned_email).first()
+    if existing_email:
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request,
+                "current_user": None,
+                "prefill_vehicle": vehicle_number or "",
+                "next_url": next or "",
+                "error": f"An account with email '{cleaned_email}' already exists. Please sign in instead."
             },
             status_code=400
         )
@@ -165,9 +213,10 @@ def register_submit(
     expires_at = datetime.utcnow() + timedelta(minutes=10)
     hashed = hash_password(password)
 
-    # Store OTP verification request
+    # Store OTP verification record
     otp_record = OTPVerification(
         phone=cleaned_phone,
+        email=cleaned_email,
         otp_code=otp_code,
         name=cleaned_name,
         hashed_password=hashed,
@@ -178,14 +227,18 @@ def register_submit(
     db.add(otp_record)
     db.commit()
 
-    # Dispatch real SMS via configured SMS gateway (Fast2SMS / 2Factor / Twilio)
+    # 1. Dispatch real Email OTP via Resend API
+    email_res = send_real_otp_email(cleaned_email, otp_code, cleaned_name)
+
+    # 2. Also dispatch SMS if available
     sms_res = send_real_otp(cleaned_phone, otp_code)
 
+    is_live = email_res.get("success") or sms_res.get("success")
     next_param = f"&next={next}" if next else ""
-    demo_param = f"&demo_otp={otp_code}" if not sms_res.get("success") else ""
+    demo_param = f"&demo_otp={otp_code}" if not is_live else ""
 
     return responses.RedirectResponse(
-        url=f"/verify-otp?phone={cleaned_phone}{demo_param}{next_param}",
+        url=f"/verify-otp?phone={cleaned_phone}&email={cleaned_email}{demo_param}{next_param}",
         status_code=status.HTTP_303_SEE_OTHER
     )
 
@@ -193,6 +246,7 @@ def register_submit(
 def verify_otp_page(
     request: Request,
     phone: str = Query(...),
+    email: Optional[str] = Query(None),
     demo_otp: Optional[str] = Query(None),
     next: Optional[str] = Query(None),
     db: Session = Depends(get_db)
@@ -206,7 +260,9 @@ def verify_otp_page(
             "request": request,
             "current_user": None,
             "phone": phone,
+            "email": email or "",
             "masked_phone": mask_phone_for_display(phone),
+            "masked_email": mask_email_for_display(email) if email else "",
             "demo_otp": demo_otp,
             "next_url": next or "",
             "error": error,
@@ -218,20 +274,27 @@ def verify_otp_page(
 def verify_otp_submit(
     request: Request,
     phone: str = Form(...),
+    email: Optional[str] = Form(None),
     otp_code: str = Form(...),
     next: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     cleaned_phone = phone.strip()
+    cleaned_email = (email or "").strip().lower()
     cleaned_otp = otp_code.strip()
 
-    # Find the latest unexpired and unused OTP record for this phone
-    record = db.query(OTPVerification).filter(
-        OTPVerification.phone == cleaned_phone,
+    # Find the latest unexpired and unused OTP record matching phone or email
+    query = db.query(OTPVerification).filter(
         OTPVerification.otp_code == cleaned_otp,
         OTPVerification.is_used == False,
         OTPVerification.expires_at >= datetime.utcnow()
-    ).order_by(OTPVerification.created_at.desc()).first()
+    )
+    if cleaned_email:
+        query = query.filter((OTPVerification.phone == cleaned_phone) | (OTPVerification.email == cleaned_email))
+    else:
+        query = query.filter(OTPVerification.phone == cleaned_phone)
+
+    record = query.order_by(OTPVerification.created_at.desc()).first()
 
     if not record:
         return templates.TemplateResponse(
@@ -240,10 +303,12 @@ def verify_otp_submit(
                 "request": request,
                 "current_user": None,
                 "phone": cleaned_phone,
+                "email": cleaned_email,
                 "masked_phone": mask_phone_for_display(cleaned_phone),
+                "masked_email": mask_email_for_display(cleaned_email),
                 "demo_otp": None,
                 "next_url": next or "",
-                "error": "Invalid or expired verification code. Please check and try again."
+                "error": "Invalid or expired verification code. Please check your inbox and try again."
             },
             status_code=400
         )
@@ -255,6 +320,7 @@ def verify_otp_submit(
     new_user = User(
         name=record.name,
         phone=record.phone,
+        email=record.email,
         hashed_password=record.hashed_password,
         is_phone_verified=True
     )
@@ -275,7 +341,7 @@ def verify_otp_submit(
 
     # Issue session token
     token = create_access_token({"user_id": new_user.id, "phone": new_user.phone})
-    target = next if is_safe_redirect(next) else "/dashboard?success=Phone+number+verified!+Welcome+to+Sampark."
+    target = next if is_safe_redirect(next) else "/dashboard?success=Account+verified!+Welcome+to+Sampark."
     response = responses.RedirectResponse(
         url=target,
         status_code=status.HTTP_303_SEE_OTHER
@@ -293,13 +359,20 @@ def verify_otp_submit(
 def resend_otp(
     request: Request,
     phone: str = Form(...),
+    email: Optional[str] = Form(None),
     next: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     cleaned_phone = phone.strip()
-    latest_record = db.query(OTPVerification).filter(
-        OTPVerification.phone == cleaned_phone
-    ).order_by(OTPVerification.created_at.desc()).first()
+    cleaned_email = (email or "").strip().lower()
+
+    query = db.query(OTPVerification)
+    if cleaned_email:
+        query = query.filter((OTPVerification.phone == cleaned_phone) | (OTPVerification.email == cleaned_email))
+    else:
+        query = query.filter(OTPVerification.phone == cleaned_phone)
+
+    latest_record = query.order_by(OTPVerification.created_at.desc()).first()
 
     if not latest_record:
         return responses.RedirectResponse(url="/register", status_code=status.HTTP_303_SEE_OTHER)
@@ -310,13 +383,18 @@ def resend_otp(
     latest_record.is_used = False
     db.commit()
 
-    # Dispatch real SMS
+    # Dispatch real Email OTP
+    recip_email = latest_record.email or cleaned_email
+    email_res = send_real_otp_email(recip_email, new_otp, latest_record.name)
     sms_res = send_real_otp(cleaned_phone, new_otp)
 
-    demo_param = f"&demo_otp={new_otp}" if not sms_res.get("success") else ""
+    is_live = email_res.get("success") or sms_res.get("success")
+    demo_param = f"&demo_otp={new_otp}" if not is_live else ""
     next_param = f"&next={next}" if next else ""
+    email_param = f"&email={recip_email}" if recip_email else ""
+
     return responses.RedirectResponse(
-        url=f"/verify-otp?phone={cleaned_phone}{demo_param}{next_param}&success=New+verification+code+sent!",
+        url=f"/verify-otp?phone={cleaned_phone}{email_param}{demo_param}{next_param}&success=New+verification+code+sent!",
         status_code=status.HTTP_303_SEE_OTHER
     )
 

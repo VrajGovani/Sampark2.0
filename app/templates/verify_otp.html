@@ -1,30 +1,34 @@
 {% extends "base.html" %}
 
-{% block title %}Verify Phone Number - Sampark{% endblock %}
+{% block title %}Verify Your Account - Sampark{% endblock %}
 
 {% block content %}
 <div class="py-12 md:py-20 flex items-center justify-center px-4">
     <div class="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-xl p-8 text-center">
         
         <!-- Header Icon -->
-        <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-            <i data-lucide="message-circle" class="w-7 h-7"></i>
+        <div class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+            <i data-lucide="mail-check" class="w-7 h-7"></i>
         </div>
 
-        <h2 class="text-2xl font-black text-slate-900">Verify Your Phone</h2>
+        <h2 class="text-2xl font-black text-slate-900">Check Your Email</h2>
         <p class="text-sm text-slate-500 mt-1">
-            We sent a 6-digit code via WhatsApp / SMS to
+            We sent a 6-digit verification code to
+            {% if email %}
+            <br><span class="font-bold text-indigo-600">{{ email }}</span>
+            {% else %}
             <span class="font-bold text-slate-800">{{ masked_phone }}</span>
+            {% endif %}
         </p>
 
-        <!-- Demo Mode Notice (Only shown if no real WhatsApp/SMS gateway key is set yet) -->
+        <!-- Demo Mode Notice (Only shown if no RESEND_API_KEY is set in .env yet) -->
         {% if demo_otp %}
         <div class="mt-4 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-left text-xs text-amber-900 flex items-start gap-2.5">
             <i data-lucide="key" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
             <div>
                 <span class="font-bold">Test Mode OTP:</span>
                 <span class="font-mono font-black text-amber-900 text-sm tracking-widest ml-1">{{ demo_otp }}</span>
-                <p class="text-[10px] text-amber-700 mt-0.5">Once your CallMeBot WhatsApp key is set in .env, codes arrive directly on your phone's WhatsApp chat!</p>
+                <p class="text-[10px] text-amber-700 mt-0.5">Once you paste your Resend API key into .env, real codes will arrive straight to your email inbox!</p>
             </div>
         </div>
         {% endif %}
@@ -32,6 +36,7 @@
         <!-- OTP Verification Form -->
         <form action="/verify-otp" method="POST" class="mt-6 space-y-4 text-left">
             <input type="hidden" name="phone" value="{{ phone }}">
+            <input type="hidden" name="email" value="{{ email if email else '' }}">
             <input type="hidden" name="next" value="{{ next_url if next_url else '' }}">
 
             <div>
@@ -57,15 +62,16 @@
                 class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 mt-4 text-base"
             >
                 <i data-lucide="check-circle-2" class="w-5 h-5"></i>
-                <span>Verify & Complete Registration</span>
+                <span>Verify & Activate Account</span>
             </button>
         </form>
 
         <!-- Resend OTP Form -->
         <div class="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>Didn't receive the code?</span>
+            <span>Didn't receive the email?</span>
             <form action="/resend-otp" method="POST">
                 <input type="hidden" name="phone" value="{{ phone }}">
+                <input type="hidden" name="email" value="{{ email if email else '' }}">
                 <input type="hidden" name="next" value="{{ next_url if next_url else '' }}">
                 <button type="submit" class="font-bold text-indigo-600 hover:text-indigo-700 hover:underline">
                     Resend Code
@@ -75,7 +81,7 @@
 
         <div class="mt-3 text-center">
             <a href="/register" class="text-xs text-slate-400 hover:text-slate-600">
-                &larr; Change phone number
+                &larr; Change email or phone
             </a>
         </div>
 
