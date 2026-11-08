@@ -3,16 +3,14 @@ import urllib.parse
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Request, Depends, Query, responses, status
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Vehicle, SearchLog
 from ..auth import get_current_user, clean_vehicle_number
+from ..templates_engine import templates
 
 router = APIRouter()
-TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
-templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 def format_whatsapp_phone(phone: str) -> str:
     """Format phone number for wa.me link: only digits, defaults to 91 for 10 digit numbers."""

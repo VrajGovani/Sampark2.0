@@ -5,7 +5,6 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Request, Depends, Form, Query, responses, status
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -19,10 +18,9 @@ from ..auth import (
 )
 from ..sms import send_real_otp, clean_phone_for_sms
 from ..email_service import send_real_otp_email
+from ..templates_engine import templates
 
 router = APIRouter()
-TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
-templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 def is_safe_redirect(url: Optional[str]) -> bool:
     """Ensure redirect URL starts with / and not // to prevent open redirect vulnerabilities."""

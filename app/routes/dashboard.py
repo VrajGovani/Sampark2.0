@@ -3,16 +3,14 @@ import qrcode
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Request, Depends, Form, responses, status, Response, HTTPException
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Vehicle, SearchLog
 from ..auth import require_login, clean_vehicle_number, get_current_user
+from ..templates_engine import templates
 
 router = APIRouter()
-TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
-templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 @router.get("/dashboard")
 def dashboard_view(
