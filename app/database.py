@@ -25,12 +25,9 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
     # Supabase provides 'postgres://...', but SQLAlchemy requires 'postgresql://'
     if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-    # Standardize dialect to postgresql://
-    for alt in ("postgresql+pg8000://", "postgresql+psycopg2://"):
-        if alt in DATABASE_URL:
-            DATABASE_URL = DATABASE_URL.replace(alt, "postgresql://")
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif DATABASE_URL.startswith("postgresql://"):
+        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
     # Clean up any misplaced ssl=true from earlier
     DATABASE_URL = DATABASE_URL.replace("&ssl=true", "").replace("?ssl=true", "")
