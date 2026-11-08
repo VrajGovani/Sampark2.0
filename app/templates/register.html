@@ -2,19 +2,51 @@
 
 {% block title %}Register - Sampark{% endblock %}
 
+{% block extra_head %}
+<!-- Firebase App & Auth SDK (Google Phone Auth) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+{% endblock %}
+
 {% block content %}
-<div class="py-12 md:py-20 flex items-center justify-center px-4">
+<div class="py-10 md:py-16 flex items-center justify-center px-4">
     <div class="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-xl p-8">
+
         <div class="text-center mb-6">
-            <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
-                <i data-lucide="user-plus" class="w-6 h-6"></i>
+            <div
+                class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+                <i data-lucide="shield-check" class="w-6 h-6"></i>
             </div>
             <h2 class="text-2xl font-black text-slate-900">Create Account</h2>
-            <p class="text-sm text-slate-500 mt-1">Register to search vehicle owners & share your contact details</p>
+            <p class="text-xs text-slate-500 mt-1">Verified Vehicle Contact Directory</p>
         </div>
 
-        <form action="/register" method="POST" class="space-y-4">
-            <!-- Hidden Next Redirect Field -->
+        <!-- Notification / Error Box -->
+        <div id="status-box" class="hidden mb-4 p-3 rounded-xl text-xs font-medium"></div>
+
+        {% if error %}
+        <div class="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
+            <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+            <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        {% if not has_firebase %}
+        <!-- Firebase Setup Notice -->
+        <div class="mb-5 p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-left text-xs text-blue-900">
+            <div class="flex items-center gap-2 font-bold mb-1 text-blue-800">
+                <i data-lucide="info" class="w-4 h-4 text-blue-600 shrink-0"></i>
+                <span>Google Firebase Setup (10,000 Free Real SMS/mo)</span>
+            </div>
+            <p class="text-[11px] text-blue-700 leading-relaxed">
+                Add your Firebase web config to your <code class="bg-blue-100 px-1 py-0.5 rounded font-mono">.env</code>
+                file to enable Google's real SMS carrier gateway.
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- STEP 1: Registration Form -->
+        <form id="register-form" action="/register" method="POST" class="space-y-4">
             <input type="hidden" name="next" value="{{ next_url if next_url else '' }}">
 
             <div>
@@ -25,74 +57,40 @@
                     <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
                         <i data-lucide="user" class="w-4 h-4"></i>
                     </span>
-                    <input
-                        type="text"
-                        name="name"
-                        required
-                        placeholder="e.g. Rahul Sharma"
-                        class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 font-medium transition"
-                    />
+                    <input type="text" id="reg-name" name="name" required placeholder="e.g. Rahul Sharma"
+                        class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 font-medium transition" />
                 </div>
             </div>
 
             <div>
                 <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                    Email Address (For Verification Code) *
+                    Mobile Phone Number *
                 </label>
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                        <i data-lucide="mail" class="w-4 h-4"></i>
+                <div class="relative flex">
+                    <span
+                        class="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-slate-300 bg-slate-50 text-slate-600 font-bold text-sm">
+                        +91
                     </span>
-                    <input
-                        type="email"
-                        name="email"
-                        required
-                        placeholder="e.g. yourname@gmail.com"
-                        class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 font-medium transition"
-                    />
+                    <input type="tel" id="reg-phone" inputmode="numeric" name="phone" required maxlength="10"
+                        placeholder="10-digit number"
+                        class="w-full px-3 py-2.5 rounded-r-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 font-bold tracking-wider transition" />
                 </div>
-                <p class="text-[11px] text-slate-400 mt-1">Your 6-digit verification code will be sent to this email.</p>
+                <p class="text-[11px] text-slate-400 mt-1">Google will send a real 6-digit SMS verification code.</p>
             </div>
 
             <div>
                 <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                    Phone Number (Visible to Searchers) *
-                </label>
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
-                        <i data-lucide="phone" class="w-4 h-4"></i>
-                    </span>
-                    <input
-                        type="tel"
-                        inputmode="numeric"
-                        name="phone"
-                        required
-                        maxlength="10"
-                        placeholder="e.g. 9876543210"
-                        class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 font-medium transition"
-                    />
-                </div>
-                <p class="text-[11px] text-slate-400 mt-1">This number is heavily masked (+91 ********10) for your privacy.</p>
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
-                    Vehicle Number (Optional)
+                    Vehicle Plate Number (Optional)
                 </label>
                 <div class="relative">
                     <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
                         <i data-lucide="car" class="w-4 h-4"></i>
                     </span>
-                    <input
-                        type="text"
-                        name="vehicle_number"
-                        value="{{ prefill_vehicle if prefill_vehicle else '' }}"
-                        placeholder="e.g. DL 01 AB 1234"
+                    <input type="text" id="reg-vehicle" name="vehicle_number"
+                        value="{{ prefill_vehicle if prefill_vehicle else '' }}" placeholder="e.g. MH 02 AB 1234"
                         autocapitalize="characters"
-                        class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 font-medium uppercase tracking-wider transition"
-                    />
+                        class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 font-medium uppercase tracking-wider transition" />
                 </div>
-                <p class="text-[11px] text-slate-400 mt-1">You can also add or change vehicles inside your dashboard anytime.</p>
             </div>
 
             <div>
@@ -103,33 +101,229 @@
                     <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
                         <i data-lucide="key" class="w-4 h-4"></i>
                     </span>
-                    <input
-                        type="password"
-                        name="password"
-                        required
-                        placeholder="Choose a secure password"
-                        class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 font-medium transition"
-                    />
+                    <input type="password" id="reg-password" name="password" required placeholder="Create a password"
+                        class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-slate-900 font-medium transition" />
                 </div>
             </div>
 
-            <button
-                type="submit"
-                class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-semibold rounded-xl shadow-md transition flex items-center justify-center gap-2 mt-4"
-            >
-                <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                <span>Continue & Receive Verification Code</span>
+            <!-- Invisible Recaptcha Container -->
+            <div id="recaptcha-container"></div>
+
+            <button type="button" id="btn-send-otp" onclick="handleSendOTP()"
+                class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-semibold rounded-xl shadow-md transition flex items-center justify-center gap-2 mt-4">
+                <i data-lucide="send" class="w-4 h-4"></i>
+                <span id="btn-send-otp-text">Send Real Google SMS OTP</span>
             </button>
         </form>
+
+        <!-- STEP 2: OTP Verification Card (Revealed after Google SMS dispatches) -->
+        <div id="otp-section" class="hidden mt-6 pt-6 border-t border-slate-100 text-center">
+            <div
+                class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="message-square" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900">Enter Google SMS Code</h3>
+            <p class="text-xs text-slate-500 mt-1">
+                Sent to <span id="display-phone" class="font-bold text-slate-800"></span>
+            </p>
+
+            <div class="mt-4">
+                <input type="text" id="otp-code-input" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+                    placeholder="••••••"
+                    class="w-full text-center text-2xl font-mono font-black tracking-[0.5em] py-3 px-4 rounded-xl border-2 border-slate-300 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 outline-none text-slate-900 transition" />
+            </div>
+
+            <button type="button" id="btn-verify-otp" onclick="handleVerifyOTP()"
+                class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 mt-4">
+                <i data-lucide="check" class="w-4 h-4"></i>
+                <span id="btn-verify-text">Verify & Activate Account</span>
+            </button>
+
+            <button type="button" onclick="resetForm()"
+                class="mt-3 text-xs text-slate-400 hover:text-slate-600 underline">
+                Change phone number
+            </button>
+        </div>
 
         <div class="mt-6 pt-5 border-t border-slate-100 text-center">
             <p class="text-sm text-slate-500">
                 Already registered?
-                <a href="/login{{ ('?next=' + next_url) if next_url else '' }}" class="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
+                <a href="/login{{ ('?next=' + next_url) if next_url else '' }}"
+                    class="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline">
                     Sign in here
                 </a>
             </p>
         </div>
     </div>
 </div>
+
+<!-- Firebase App & Auth SDK (Google Phone Auth) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+
+<script>
+    // Firebase Config passed securely from server
+    const firebaseConfig = {
+        apiKey: "{{ firebase_config.apiKey }}",
+        authDomain: "{{ firebase_config.authDomain }}",
+        projectId: "{{ firebase_config.projectId }}",
+        storageBucket: "{{ firebase_config.storageBucket }}",
+        messagingSenderId: "{{ firebase_config.messagingSenderId }}",
+        appId: "{{ firebase_config.appId }}"
+    };
+
+    let confirmationResult = null;
+    let recaptchaVerifier = null;
+    const hasFirebase = Boolean(firebaseConfig.apiKey);
+
+    if (hasFirebase) {
+        try {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+        } catch (e) {
+            console.error("Firebase init error:", e);
+        }
+    }
+
+    function showStatus(message, isError = true) {
+        const box = document.getElementById('status-box');
+        box.className = isError
+            ? 'mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs'
+            : 'mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs';
+        box.textContent = message;
+        box.classList.remove('hidden');
+    }
+
+    function clearStatus() {
+        document.getElementById('status-box').classList.add('hidden');
+    }
+
+    async function handleSendOTP() {
+        clearStatus();
+        const name = document.getElementById('reg-name').value.trim();
+        const phone = document.getElementById('reg-phone').value.trim();
+        const password = document.getElementById('reg-password').value;
+
+        if (!name) return showStatus("Please enter your full name.");
+        if (!phone || phone.length !== 10 || !/^\d{10}$/.test(phone)) {
+            return showStatus("Please enter a valid 10-digit Indian mobile number.");
+        }
+        if (!password) return showStatus("Please enter a password.");
+
+        const btn = document.getElementById('btn-send-otp');
+        const btnText = document.getElementById('btn-send-otp-text');
+        btn.disabled = true;
+        btnText.textContent = "Checking number...";
+
+        // 1. Verify phone availability on backend
+        try {
+            const checkRes = await fetch(`/api/check-phone?phone=${phone}`);
+            const checkData = await checkRes.json();
+            if (!checkData.valid) {
+                btn.disabled = false;
+                btnText.textContent = "Send Real Google SMS OTP";
+                return showStatus(checkData.error || "Phone already registered.");
+            }
+        } catch (e) {
+            btn.disabled = false;
+            btnText.textContent = "Send Real Google SMS OTP";
+            return showStatus("Network error checking phone number.");
+        }
+
+        // 2. If Firebase is not configured, fall back to standard POST
+        if (!hasFirebase) {
+            btnText.textContent = "Submitting...";
+            document.getElementById('register-form').submit();
+            return;
+        }
+
+        // 3. Trigger Google Firebase Phone Auth SMS
+        btnText.textContent = "Sending Google SMS...";
+        const fullPhoneNumber = "+91" + phone;
+
+        try {
+            if (!recaptchaVerifier) {
+                recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+                    'size': 'invisible',
+                    'callback': function (response) {
+                        console.log("reCAPTCHA resolved");
+                    }
+                });
+            }
+
+            confirmationResult = await firebase.auth().signInWithPhoneNumber(fullPhoneNumber, recaptchaVerifier);
+
+            // Show Step 2
+            document.getElementById('display-phone').textContent = "+91 " + phone;
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('otp-section').classList.remove('hidden');
+            document.getElementById('otp-code-input').focus();
+            showStatus("✅ Real 6-digit SMS sent to +91 " + phone + "! Please check your phone messages.", false);
+        } catch (error) {
+            console.error("Firebase SMS Error:", error);
+            btn.disabled = false;
+            btnText.textContent = "Send Real Google SMS OTP";
+            if (recaptchaVerifier) {
+                try { recaptchaVerifier.render().then(widgetId => grecaptcha.reset(widgetId)); } catch (e) { }
+            }
+            showStatus("Google SMS error: " + (error.message || "Failed to send code."));
+        }
+    }
+
+    async function handleVerifyOTP() {
+        clearStatus();
+        const code = document.getElementById('otp-code-input').value.trim();
+        if (!code || code.length !== 6) {
+            return showStatus("Please enter the complete 6-digit code.");
+        }
+
+        const btn = document.getElementById('btn-verify-otp');
+        const btnText = document.getElementById('btn-verify-text');
+        btn.disabled = true;
+        btnText.textContent = "Verifying with Google...";
+
+        try {
+            // 1. Confirm code with Firebase Google
+            await confirmationResult.confirm(code);
+
+            btnText.textContent = "Creating Account...";
+
+            // 2. Submit to backend to create verified user
+            const formData = new FormData();
+            formData.append("name", document.getElementById('reg-name').value.trim());
+            formData.append("phone", document.getElementById('reg-phone').value.trim());
+            formData.append("password", document.getElementById('reg-password').value);
+            formData.append("vehicle_number", document.getElementById('reg-vehicle').value.trim());
+            formData.append("next", document.querySelector('input[name="next"]').value);
+
+            const resp = await fetch('/api/register/firebase-complete', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                window.location.href = data.redirect_url || '/dashboard';
+            } else {
+                btn.disabled = false;
+                btnText.textContent = "Verify & Activate Account";
+                showStatus(data.error || "Failed to save registration.");
+            }
+        } catch (error) {
+            console.error("Verification Error:", error);
+            btn.disabled = false;
+            btnText.textContent = "Verify & Activate Account";
+            showStatus("Invalid or expired verification code: " + (error.message || "Please check the code."));
+        }
+    }
+
+    function resetForm() {
+        document.getElementById('otp-section').classList.add('hidden');
+        document.getElementById('register-form').classList.remove('hidden');
+        document.getElementById('btn-send-otp').disabled = false;
+        document.getElementById('btn-send-otp-text').textContent = "Send Real Google SMS OTP";
+        clearStatus();
+    }
+</script>
 {% endblock %}

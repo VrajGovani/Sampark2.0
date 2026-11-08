@@ -106,3 +106,4 @@ def send_real_otp_email(to_email: str, otp_code: str, user_name: str = "") -> di
     print(f"   (Add RESEND_API_KEY in .env to receive real emails in inbox)")
     print("=" * 55 + "\n")
     return {"success": False, "provider": "Console", "demo": True}
+

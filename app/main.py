@@ -1,8 +1,9 @@
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 import os
 
 from .routes import search, auth, dashboard
+from .database import engine, Base
 
 app = FastAPI(
     title="Sampark 2.0 - Vehicle Contact Directory",
@@ -10,17 +11,27 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Create database tables automatically on startup
+@app.on_event("startup")
+def on_startup():
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print("Startup DB check:", e)
+
 # Health check route for instant diagnostic
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "app": "Sampark 2.0", "message": "Serverless function is healthy"}
+    return {"status": "ok", "app": "Sampark 2.0", "message": "Service is healthy"}
 
 # Exception handler for login redirects
 @app.exception_handler(HTTPException)
 async def custom_http_exception_handler(request: Request, exc: HTTPException):
     if exc.status_code == 303 and "Location" in exc.headers:
         return RedirectResponse(url=exc.headers["Location"], status_code=303)
-    return RedirectResponse(url="/login?error=Session+expired.+Please+login.", status_code=303)
+    if exc.status_code == 401:
+        return RedirectResponse(url="/login?error=Please+sign+in+first.", status_code=303)
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 # Include Routers
 app.include_router(search.router)
@@ -29,6 +40,5 @@ app.include_router(dashboard.router)
 
 if __name__ == "__main__":
     import uvicorn
-    from .database import engine, Base
     Base.metadata.create_all(bind=engine)
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

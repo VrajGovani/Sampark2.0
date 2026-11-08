@@ -1,5 +1,6 @@
 import random
 import re
+import os
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional
@@ -16,7 +17,7 @@ from ..auth import (
     get_current_user,
     clean_vehicle_number,
 )
-from ..sms import send_real_otp
+from ..sms import send_real_otp, clean_phone_for_sms
 from ..email_service import send_real_otp_email
 
 router = APIRouter()
@@ -43,6 +44,94 @@ def mask_email_for_display(email: str) -> str:
     else:
         masked_user = user_part[0] + "***" + user_part[-1]
     return f"{masked_user}@{domain_part}"
+
+def get_firebase_config() -> dict:
+    """Loads Firebase Web configuration from environment variables."""
+    return {
+        "apiKey": os.getenv("FIREBASE_API_KEY", "").strip(),
+        "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN", "").strip(),
+        "projectId": os.getenv("FIREBASE_PROJECT_ID", "").strip(),
+        "storageBucket": os.getenv("FIREBASE_STORAGE_BUCKET", "").strip(),
+        "messagingSenderId": os.getenv("FIREBASE_MESSAGING_SENDER_ID", "").strip(),
+        "appId": os.getenv("FIREBASE_APP_ID", "").strip()
+    }
+
+# Phone availability pre-check for Firebase Phone Auth
+@router.get("/api/check-phone")
+def api_check_phone(
+    phone: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    clean = clean_phone_for_sms(phone)
+    if not clean or len(clean) != 10:
+        return {"valid": False, "error": "Please enter a valid 10-digit Indian mobile number."}
+
+    user = db.query(User).filter(User.phone == clean).first()
+    if user:
+        return {"valid": False, "error": f"An account with phone +91 {clean} already exists. Please sign in instead."}
+
+    return {"valid": True, "clean_phone": clean}
+
+# Firebase Verified Registration Endpoint
+@router.post("/api/register/firebase-complete")
+def firebase_register_complete(
+    request: Request,
+    name: str = Form(...),
+    phone: str = Form(...),
+    password: str = Form(...),
+    vehicle_number: Optional[str] = Form(None),
+    next: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    cleaned_name = name.strip()
+    cleaned_phone = clean_phone_for_sms(phone)
+
+    if not cleaned_phone or len(cleaned_phone) != 10:
+        return responses.JSONResponse(status_code=400, content={"success": False, "error": "Invalid 10-digit mobile number."})
+
+    existing_user = db.query(User).filter(User.phone == cleaned_phone).first()
+    if existing_user:
+        return responses.JSONResponse(status_code=400, content={"success": False, "error": f"An account with phone +91 {cleaned_phone} already exists."})
+
+    clean_v_num = clean_vehicle_number(vehicle_number) if vehicle_number else ""
+    if clean_v_num:
+        existing_vehicle = db.query(Vehicle).filter(Vehicle.vehicle_number == clean_v_num).first()
+        if existing_vehicle:
+            return responses.JSONResponse(status_code=400, content={"success": False, "error": f"Vehicle plate '{clean_v_num}' is already registered."})
+
+    hashed = hash_password(password)
+    new_user = User(
+        name=cleaned_name,
+        phone=cleaned_phone,
+        hashed_password=hashed,
+        is_phone_verified=True
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    if clean_v_num:
+        v_rec = Vehicle(
+            user_id=new_user.id,
+            vehicle_number=clean_v_num,
+            contact_phone=cleaned_phone,
+            notes="Default registration"
+        )
+        db.add(v_rec)
+        db.commit()
+
+    token = create_access_token({"user_id": new_user.id, "phone": new_user.phone})
+    target = next if is_safe_redirect(next) else "/dashboard?success=Phone+verified+via+Google+SMS!+Welcome+to+Sampark."
+    
+    resp = responses.JSONResponse(content={"success": True, "redirect_url": target})
+    resp.set_cookie(
+        key="sampark_token",
+        value=token,
+        httponly=True,
+        max_age=30 * 86400,
+        samesite="lax"
+    )
+    return resp
 
 @router.get("/login")
 def login_page(
@@ -122,6 +211,8 @@ def register_page(
         return responses.RedirectResponse(url=target, status_code=status.HTTP_303_SEE_OTHER)
 
     error = request.query_params.get("error")
+    firebase_cfg = get_firebase_config()
+
     return templates.TemplateResponse(
         "register.html",
         {
@@ -129,7 +220,9 @@ def register_page(
             "current_user": None,
             "prefill_vehicle": vehicle or "",
             "next_url": next or "",
-            "error": error
+            "error": error,
+            "firebase_config": firebase_cfg,
+            "has_firebase": bool(firebase_cfg.get("apiKey"))
         }
     )
 
@@ -137,30 +230,16 @@ def register_page(
 def register_submit(
     request: Request,
     name: str = Form(...),
-    email: str = Form(...),
     phone: str = Form(...),
     password: str = Form(...),
+    email: Optional[str] = Form(None),
     vehicle_number: Optional[str] = Form(None),
     next: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
     cleaned_name = name.strip()
-    cleaned_email = email.strip().lower()
-    cleaned_phone = phone.strip()
-
-    # Validate email
-    if not re.match(r"[^@]+@[^@]+\.[^@]+", cleaned_email):
-        return templates.TemplateResponse(
-            "register.html",
-            {
-                "request": request,
-                "current_user": None,
-                "prefill_vehicle": vehicle_number or "",
-                "next_url": next or "",
-                "error": "Please enter a valid email address."
-            },
-            status_code=400
-        )
+    cleaned_phone = clean_phone_for_sms(phone)
+    cleaned_email = (email or "").strip().lower()
 
     # Check if user with phone already exists
     existing_phone = db.query(User).filter(User.phone == cleaned_phone).first()
@@ -172,22 +251,9 @@ def register_submit(
                 "current_user": None,
                 "prefill_vehicle": vehicle_number or "",
                 "next_url": next or "",
-                "error": f"An account with phone {cleaned_phone} already exists. Please sign in instead."
-            },
-            status_code=400
-        )
-
-    # Check if user with email already exists
-    existing_email = db.query(User).filter(User.email == cleaned_email).first()
-    if existing_email:
-        return templates.TemplateResponse(
-            "register.html",
-            {
-                "request": request,
-                "current_user": None,
-                "prefill_vehicle": vehicle_number or "",
-                "next_url": next or "",
-                "error": f"An account with email '{cleaned_email}' already exists. Please sign in instead."
+                "error": f"An account with phone {cleaned_phone} already exists. Please sign in instead.",
+                "firebase_config": get_firebase_config(),
+                "has_firebase": bool(get_firebase_config().get("apiKey"))
             },
             status_code=400
         )
@@ -203,7 +269,9 @@ def register_submit(
                     "current_user": None,
                     "prefill_vehicle": vehicle_number,
                     "next_url": next or "",
-                    "error": f"Vehicle plate '{clean_v_num}' is already registered by an owner."
+                    "error": f"Vehicle plate '{clean_v_num}' is already registered by an owner.",
+                    "firebase_config": get_firebase_config(),
+                    "has_firebase": bool(get_firebase_config().get("apiKey"))
                 },
                 status_code=400
             )
@@ -216,7 +284,7 @@ def register_submit(
     # Store OTP verification record
     otp_record = OTPVerification(
         phone=cleaned_phone,
-        email=cleaned_email,
+        email=cleaned_email if cleaned_email else None,
         otp_code=otp_code,
         name=cleaned_name,
         hashed_password=hashed,
@@ -227,18 +295,19 @@ def register_submit(
     db.add(otp_record)
     db.commit()
 
-    # 1. Dispatch real Email OTP via Resend API
-    email_res = send_real_otp_email(cleaned_email, otp_code, cleaned_name)
-
-    # 2. Also dispatch SMS if available
+    # Dispatch via SMS / Email
     sms_res = send_real_otp(cleaned_phone, otp_code)
+    email_res = {"success": False}
+    if cleaned_email:
+        email_res = send_real_otp_email(cleaned_email, otp_code, cleaned_name)
 
     is_live = email_res.get("success") or sms_res.get("success")
     next_param = f"&next={next}" if next else ""
     demo_param = f"&demo_otp={otp_code}" if not is_live else ""
+    email_param = f"&email={cleaned_email}" if cleaned_email else ""
 
     return responses.RedirectResponse(
-        url=f"/verify-otp?phone={cleaned_phone}&email={cleaned_email}{demo_param}{next_param}",
+        url=f"/verify-otp?phone={cleaned_phone}{email_param}{demo_param}{next_param}",
         status_code=status.HTTP_303_SEE_OTHER
     )
 
@@ -279,7 +348,7 @@ def verify_otp_submit(
     next: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
-    cleaned_phone = phone.strip()
+    cleaned_phone = clean_phone_for_sms(phone)
     cleaned_email = (email or "").strip().lower()
     cleaned_otp = otp_code.strip()
 
@@ -308,7 +377,7 @@ def verify_otp_submit(
                 "masked_email": mask_email_for_display(cleaned_email),
                 "demo_otp": None,
                 "next_url": next or "",
-                "error": "Invalid or expired verification code. Please check your inbox and try again."
+                "error": "Invalid or expired verification code. Please check and try again."
             },
             status_code=400
         )
@@ -363,7 +432,7 @@ def resend_otp(
     next: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
-    cleaned_phone = phone.strip()
+    cleaned_phone = clean_phone_for_sms(phone)
     cleaned_email = (email or "").strip().lower()
 
     query = db.query(OTPVerification)
@@ -383,10 +452,12 @@ def resend_otp(
     latest_record.is_used = False
     db.commit()
 
-    # Dispatch real Email OTP
-    recip_email = latest_record.email or cleaned_email
-    email_res = send_real_otp_email(recip_email, new_otp, latest_record.name)
+    # Dispatch real SMS / Email
     sms_res = send_real_otp(cleaned_phone, new_otp)
+    email_res = {"success": False}
+    recip_email = latest_record.email or cleaned_email
+    if recip_email:
+        email_res = send_real_otp_email(recip_email, new_otp, latest_record.name)
 
     is_live = email_res.get("success") or sms_res.get("success")
     demo_param = f"&demo_otp={new_otp}" if not is_live else ""
