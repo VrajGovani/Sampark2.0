@@ -33,6 +33,23 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
         return RedirectResponse(url="/login?error=Please+sign+in+first.", status_code=303)
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
+# Catch-all exception handler to display actionable tracebacks
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    import sys
+    tb = traceback.format_exc()
+    print("GLOBAL UNHANDLED EXCEPTION:\n", tb, file=sys.stderr)
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(
+        status_code=500,
+        content=f"<html><body style='font-family:monospace;padding:24px;background:#0f172a;color:#f8fafc;'>"
+                f"<h2 style='color:#f87171'>🚨 500 Internal Server Error</h2>"
+                f"<p style='color:#fbbf24'><b>Error:</b> {str(exc)}</p>"
+                f"<pre style='background:#1e293b;padding:16px;border-radius:12px;overflow:auto;color:#4ade80'>{tb}</pre>"
+                f"</body></html>"
+    )
+
 # Include Routers
 app.include_router(search.router)
 app.include_router(auth.router)

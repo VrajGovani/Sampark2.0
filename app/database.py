@@ -23,6 +23,9 @@ else:
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if DATABASE_URL:
+    # Strip any accidental wrapping quotes copied from .env
+    DATABASE_URL = DATABASE_URL.strip().strip("'").strip('"')
+
     # Supabase provides 'postgres://...', but SQLAlchemy requires 'postgresql://'
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
