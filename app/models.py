@@ -42,6 +42,7 @@ class VehicleAlert(Base):
     reason = Column(String(100), nullable=False)
     message = Column(String(500), nullable=True)
     sender_phone = Column(String(30), nullable=True)
+    owner_response = Column(String(200), nullable=True)
     is_resolved = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 

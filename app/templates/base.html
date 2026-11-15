@@ -169,23 +169,45 @@
                 </div>
             </div>
 
-            <!-- Action Buttons -->
-            <div class="space-y-2">
+            <!-- Action Buttons: Quick Masked Responses -->
+            <div class="space-y-2 pt-2">
+                <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    Send Instant Reply to Waiting Person:
+                </span>
+                <div class="grid grid-cols-2 gap-2">
+                    <button
+                        type="button"
+                        onclick="respondToLiveAlert('I am on my way in 2 minutes!', false)"
+                        class="py-2.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+                    >
+                        <span>🏃</span>
+                        <span>On My Way (2 min)</span>
+                    </button>
+                    <button
+                        type="button"
+                        onclick="respondToLiveAlert('Moving car right now!', false)"
+                        class="py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-300 font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 transition active:scale-[0.98]"
+                    >
+                        <span>🚗</span>
+                        <span>Moving Car Now</span>
+                    </button>
+                </div>
+
                 <button
                     type="button"
                     id="btnResolveLiveAlert"
-                    onclick="resolveCurrentLiveAlert()"
-                    class="w-full py-3.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-black rounded-2xl shadow-lg shadow-red-500/25 active:scale-[0.98] transition flex items-center justify-center gap-2 text-sm"
+                    onclick="respondToLiveAlert('Issue resolved by vehicle owner.', true)"
+                    class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black rounded-2xl shadow-md active:scale-[0.98] transition flex items-center justify-center gap-2 text-xs mt-2"
                 >
                     <i data-lucide="check-circle" class="w-4 h-4"></i>
-                    <span>✓ I'm on my way / Mark Handled</span>
+                    <span>✓ Mark Handled & Close</span>
                 </button>
                 <button
                     type="button"
                     onclick="dismissLiveAlertModal()"
-                    class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
+                    class="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs transition"
                 >
-                    Dismiss for now
+                    Dismiss
                 </button>
             </div>
         </div>
@@ -309,21 +331,29 @@
         document.getElementById('globalLiveAlertModal').classList.add('hidden');
     }
 
-    async function resolveCurrentLiveAlert() {
+    async function respondToLiveAlert(responseText, markResolved) {
         if (!activeLiveAlertId) return;
 
         try {
             const formData = new FormData();
             formData.append("alert_id", activeLiveAlertId);
-            await fetch("/api/alert/resolve", {
+            formData.append("response_text", responseText);
+            formData.append("mark_resolved", markResolved ? "true" : "false");
+
+            await fetch("/api/alert/respond", {
                 method: "POST",
                 body: formData
             });
             acknowledgedAlerts.add(activeLiveAlertId);
-        } catch (e) {}
+        } catch (e) {
+            console.error(e);
+        }
 
         document.getElementById('globalLiveAlertModal').classList.add('hidden');
-        window.location.reload();
+    }
+
+    async function resolveCurrentLiveAlert() {
+        return respondToLiveAlert('Resolved by vehicle owner', true);
     }
 
     // Poll every 3.5 seconds

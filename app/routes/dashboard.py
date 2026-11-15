@@ -143,6 +143,55 @@ def api_resolve_alert(
 
     return responses.JSONResponse(status_code=404, content={"success": False, "error": "Alert not found"})
 
+@router.post("/api/alert/respond")
+def api_respond_alert(
+    request: Request,
+    alert_id: int = Form(...),
+    response_text: str = Form(...),
+    mark_resolved: bool = Form(False),
+    db: Session = Depends(get_db)
+):
+    """
+    Owner clicks 'On my way in 2 mins' or 'Moving car now' -> saves response so searcher sees it live.
+    """
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return responses.JSONResponse(status_code=401, content={"success": False, "error": "Not logged in"})
+
+    alert = db.query(VehicleAlert).join(Vehicle).filter(
+        VehicleAlert.id == alert_id,
+        Vehicle.user_id == current_user.id
+    ).first()
+
+    if alert:
+        alert.owner_response = response_text.strip()
+        if mark_resolved:
+            alert.is_resolved = True
+        db.commit()
+        return {"success": True, "message": "Response recorded", "owner_response": alert.owner_response}
+
+    return responses.JSONResponse(status_code=404, content={"success": False, "error": "Alert not found"})
+
+@router.get("/api/alert/status/{alert_id}")
+def api_check_alert_status(
+    alert_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Public live polling endpoint for the searcher: shows when owner replies or resolves alert!
+    """
+    alert = db.query(VehicleAlert).filter(VehicleAlert.id == alert_id).first()
+    if not alert:
+        return {"found": False}
+
+    return {
+        "found": True,
+        "id": alert.id,
+        "is_resolved": alert.is_resolved,
+        "owner_response": alert.owner_response or ""
+    }
+
 @router.post("/dashboard/vehicle/add")
 def add_vehicle(
     request: Request,
