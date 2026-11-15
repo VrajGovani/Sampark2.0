@@ -30,6 +30,23 @@ class Vehicle(Base):
 
     owner = relationship("User", back_populates="vehicles")
     search_logs = relationship("SearchLog", back_populates="vehicle", cascade="all, delete-orphan")
+    alerts = relationship("VehicleAlert", back_populates="vehicle", cascade="all, delete-orphan", order_by="desc(VehicleAlert.created_at)")
+
+
+class VehicleAlert(Base):
+    __tablename__ = "vehicle_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    vehicle_id = Column(Integer, ForeignKey("vehicles.id"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reason = Column(String(100), nullable=False)
+    message = Column(String(500), nullable=True)
+    sender_phone = Column(String(30), nullable=True)
+    is_resolved = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    vehicle = relationship("Vehicle", back_populates="alerts")
+    sender = relationship("User")
 
 
 class SearchLog(Base):

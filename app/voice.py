@@ -30,9 +30,9 @@ def initiate_masked_call(caller_phone: str, owner_phone: str, vehicle_number: st
     3. Bridges call to Owner's phone, showing ONLY the Twilio virtual number.
     4. Neither caller nor owner sees the other person's real number!
     """
-    account_sid = os.getenv("TWILIO_ACCOUNT_SID", "").strip()
-    auth_token = os.getenv("TWILIO_AUTH_TOKEN", "").strip()
-    twilio_number = os.getenv("TWILIO_PHONE_NUMBER", "").strip()
+    account_sid = (os.getenv("TWILIO_ACCOUNT_SID") or TWILIO_ACCOUNT_SID).strip()
+    auth_token = (os.getenv("TWILIO_AUTH_TOKEN") or TWILIO_AUTH_TOKEN).strip()
+    twilio_number = (os.getenv("TWILIO_PHONE_NUMBER") or TWILIO_PHONE_NUMBER).strip()
 
     if not account_sid or not auth_token or not twilio_number:
         return {
@@ -53,11 +53,14 @@ def initiate_masked_call(caller_phone: str, owner_phone: str, vehicle_number: st
     </Dial>
 </Response>"""
 
+    # Twilio trial accounts require a hosted URL (Twimlet / webhook) rather than inline Twiml
+    twiml_url = f"https://twimlets.com/echo?Twiml={urllib.parse.quote(twiml)}"
+
     url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Calls.json"
     data = {
         "To": caller_e164,
         "From": twilio_number,
-        "Twiml": twiml
+        "Url": twiml_url
     }
 
     try:
@@ -79,11 +82,26 @@ def initiate_masked_call(caller_phone: str, owner_phone: str, vehicle_number: st
                     "virtual_number": twilio_number
                 }
             else:
+                error_code = resp_data.get("code")
                 error_msg = resp_data.get("message", resp.text)
+                
+                if error_code == 573002 or "verified" in error_msg.lower():
+                    friendly_error = (
+                        f"Twilio Trial restriction: To place calls in trial mode, numbers must be verified first. "
+                        f"Go to Twilio Console -> Phone Numbers -> Manage -> 'Verified Caller IDs' and add {caller_e164}."
+                    )
+                elif "not assigned" in error_msg.lower() or "not a valid phone number" in error_msg.lower():
+                    friendly_error = (
+                        f"Twilio number {twilio_number} is not claimed or assigned in your Twilio account yet. "
+                        "Click 'Get a phone number' in Twilio Console to claim your active trial number."
+                    )
+                else:
+                    friendly_error = error_msg
+
                 print(f"⚠️ [Twilio Voice Error] {error_msg}")
                 return {
                     "success": False,
-                    "error": error_msg
+                    "error": friendly_error
                 }
     except Exception as e:
         print(f"⚠️ [Twilio Voice Exception] {e}")
@@ -91,3 +109,4 @@ def initiate_masked_call(caller_phone: str, owner_phone: str, vehicle_number: st
             "success": False,
             "error": str(e)
         }
+

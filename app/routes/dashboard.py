@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, Depends, Form, responses, status, Respon
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Vehicle, SearchLog
+from ..models import Vehicle, SearchLog, VehicleAlert
 from ..auth import require_login, clean_vehicle_number, get_current_user
 from ..templates_engine import templates
 
@@ -22,13 +22,24 @@ def dashboard_view(
         Vehicle.user_id == current_user.id
     ).order_by(Vehicle.created_at.desc()).all()
 
-    # Fetch recent lookup alerts for all vehicles owned by this user
+    # Fetch recent lookup logs and urgent alerts for all vehicles owned by this user
     vehicle_ids = [v.id for v in vehicles]
     recent_alerts = []
+    active_alerts = []
+    all_vehicle_alerts = []
+
     if vehicle_ids:
+        # Search lookups
         recent_alerts = db.query(SearchLog).filter(
             SearchLog.vehicle_id.in_(vehicle_ids)
         ).order_by(SearchLog.created_at.desc()).limit(10).all()
+
+        # Urgent vehicle alerts
+        all_vehicle_alerts = db.query(VehicleAlert).filter(
+            VehicleAlert.vehicle_id.in_(vehicle_ids)
+        ).order_by(VehicleAlert.created_at.desc()).limit(20).all()
+
+        active_alerts = [a for a in all_vehicle_alerts if not a.is_resolved]
 
     error = request.query_params.get("error")
     success = request.query_params.get("success")
@@ -40,9 +51,36 @@ def dashboard_view(
             "current_user": current_user,
             "vehicles": vehicles,
             "recent_alerts": recent_alerts,
+            "active_alerts": active_alerts,
+            "all_vehicle_alerts": all_vehicle_alerts,
             "error": error,
             "success": success
         }
+    )
+
+@router.post("/dashboard/alert/resolve/{alert_id}")
+def resolve_alert(
+    alert_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    current_user = require_login(request, db)
+    alert = db.query(VehicleAlert).join(Vehicle).filter(
+        VehicleAlert.id == alert_id,
+        Vehicle.user_id == current_user.id
+    ).first()
+
+    if alert:
+        alert.is_resolved = True
+        db.commit()
+        return responses.RedirectResponse(
+            url="/dashboard?success=Alert+marked+as+resolved!",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    return responses.RedirectResponse(
+        url="/dashboard?error=Alert+not+found.",
+        status_code=status.HTTP_303_SEE_OTHER
     )
 
 @router.post("/dashboard/vehicle/add")

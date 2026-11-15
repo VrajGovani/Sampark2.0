@@ -30,6 +30,62 @@
         </div>
     </div>
 
+    <!-- Active Emergency Alerts Banner -->
+    {% if active_alerts %}
+    <div class="mt-6 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 rounded-3xl p-6 text-white shadow-xl shadow-red-500/20">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-white shrink-0">
+                    <i data-lucide="alert-triangle" class="w-6 h-6 animate-bounce"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-black tracking-wide flex items-center gap-2">
+                        <span>🚨 Urgent Action Required:</span>
+                        <span class="bg-white text-red-700 px-2.5 py-0.5 rounded-full text-xs font-black">{{ active_alerts|length }} Active Alert{% if active_alerts|length > 1 %}s{% endif %}</span>
+                    </h2>
+                    <p class="text-xs text-red-100 mt-0.5">Someone reported an urgent issue regarding your vehicle.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            {% for alert in active_alerts %}
+            <div class="bg-black/20 backdrop-blur-md rounded-2xl p-4 border border-white/20 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between">
+                        <span class="px-2.5 py-0.5 bg-amber-400 text-slate-900 font-mono font-black text-xs rounded-md shadow-sm">{{ alert.vehicle.vehicle_number }}</span>
+                        <span class="text-[11px] text-red-100">{{ alert.created_at.strftime('%I:%M %p, %d %b') }}</span>
+                    </div>
+                    <div class="mt-2.5 text-sm font-bold flex items-center gap-1.5">
+                        <span class="text-amber-300">⚠️</span>
+                        <span>{{ alert.reason }}</span>
+                    </div>
+                    {% if alert.message %}
+                    <p class="mt-2 text-xs text-white/95 italic bg-black/25 p-2.5 rounded-xl border border-white/10">
+                        "{{ alert.message }}"
+                    </p>
+                    {% endif %}
+                    {% if alert.sender_phone %}
+                    <div class="mt-2.5 text-xs text-white flex items-center gap-2">
+                        <span>📞 Contact Back:</span>
+                        <a href="tel:{{ alert.sender_phone }}" class="underline font-bold bg-white/20 px-2 py-0.5 rounded-md hover:bg-white/30 transition">{{ alert.sender_phone }}</a>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="mt-3 pt-3 border-t border-white/20 flex justify-end">
+                    <form action="/dashboard/alert/resolve/{{ alert.id }}" method="POST">
+                        <button type="submit" class="bg-white hover:bg-red-50 text-red-700 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition shadow">
+                            <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+                            <span>Mark as Resolved</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Main Grid: Left Form + Right Vehicles & Alerts -->
     <div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
 

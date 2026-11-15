@@ -6,10 +6,12 @@ from fastapi import APIRouter, Request, Depends, Query, Form, responses, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Vehicle, SearchLog
+from ..models import Vehicle, SearchLog, VehicleAlert
 from ..auth import get_current_user, clean_vehicle_number
 from ..templates_engine import templates
 from ..voice import initiate_masked_call
+from ..email_service import send_vehicle_alert_email
+from ..sms import send_vehicle_alert_whatsapp
 
 router = APIRouter()
 
@@ -161,6 +163,26 @@ def api_search(
     }
 
 # Masked Calling API Endpoint (Uber-style)
+@router.get("/api/voice/twiml")
+@router.post("/api/voice/twiml")
+def get_twiml_endpoint(
+    to: str = Query(...),
+    caller_id: str = Query(...),
+    vehicle: Optional[str] = Query("")
+):
+    """
+    Public TwiML webhook endpoint for Twilio Voice bridging.
+    """
+    plate_text = f"for vehicle {vehicle}" if vehicle else ""
+    xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Aditi" language="en-IN">Connecting your masked call to the vehicle owner {plate_text}. Please hold.</Say>
+    <Dial callerId="{caller_id}" timeout="30">
+        <Number>{to}</Number>
+    </Dial>
+</Response>"""
+    return responses.Response(content=xml_content, media_type="application/xml")
+
 @router.post("/api/call/mask")
 def api_masked_call(
     request: Request,
@@ -228,4 +250,97 @@ def api_masked_call(
                 "error": result.get("error", "Failed to initiate call.")
             }
         )
+
+# Masked Urgent Alert Endpoint (100% Free Notification Bridge)
+@router.post("/api/alert/send")
+def api_send_alert(
+    request: Request,
+    vehicle_number: str = Form(...),
+    reason: str = Form(...),
+    message: Optional[str] = Form(None),
+    share_contact: Optional[bool] = Form(False),
+    db: Session = Depends(get_db)
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return responses.JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Please sign in first to send an urgent alert."}
+        )
+
+    clean_v = clean_vehicle_number(vehicle_number)
+    vehicle = db.query(Vehicle).filter(
+        Vehicle.vehicle_number == clean_v,
+        Vehicle.is_active == True
+    ).first()
+
+    if not vehicle:
+        return responses.JSONResponse(
+            status_code=404,
+            content={"success": False, "error": "Vehicle not found or owner has paused contact."}
+        )
+
+    # Prevent sending alert to your own vehicle
+    if vehicle.user_id == current_user.id:
+        return responses.JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "This is your own registered vehicle!"}
+        )
+
+    sender_contact_info = current_user.phone if share_contact else None
+
+    # 1. Save alert into DB
+    alert = VehicleAlert(
+        vehicle_id=vehicle.id,
+        sender_id=current_user.id,
+        reason=reason.strip(),
+        message=message.strip() if message else None,
+        sender_phone=sender_contact_info
+    )
+    db.add(alert)
+
+    # 2. Add SearchLog
+    try:
+        log_entry = SearchLog(
+            vehicle_id=vehicle.id,
+            searched_by_id=current_user.id
+        )
+        db.add(log_entry)
+        db.commit()
+        db.refresh(alert)
+    except Exception as e:
+        db.rollback()
+        return responses.JSONResponse(
+            status_code=500,
+            content={"success": False, "error": f"Failed to record alert: {str(e)}"}
+        )
+
+    # 3. Dispatch Email Alert if owner email exists
+    owner_user = vehicle.owner
+    if owner_user and owner_user.email:
+        send_vehicle_alert_email(
+            to_email=owner_user.email,
+            owner_name=owner_user.name,
+            vehicle_number=clean_v,
+            reason=reason.strip(),
+            custom_message=message.strip() if message else "",
+            sender_phone=sender_contact_info or ""
+        )
+
+    # 4. Dispatch WhatsApp Alert if CallMeBot or similar is configured
+    if vehicle.contact_phone:
+        send_vehicle_alert_whatsapp(
+            phone=vehicle.contact_phone,
+            vehicle_number=clean_v,
+            reason=reason.strip(),
+            custom_message=message.strip() if message else "",
+            sender_phone=sender_contact_info or ""
+        )
+
+    return {
+        "success": True,
+        "message": f"🚨 Urgent alert successfully dispatched for vehicle {clean_v}! The owner has been notified on their Sampark dashboard and alert channels.",
+        "alert_id": alert.id
+    }
+
 

@@ -86,3 +86,46 @@ def send_real_otp(phone: str, otp_code: str) -> dict:
     print(f"   (To get real WhatsApp OTP, set CALLMEBOT_API_KEY in .env)")
     print("=" * 55 + "\n")
     return {"success": False, "provider": "Console", "demo": True}
+
+
+def send_vehicle_alert_whatsapp(
+    phone: str,
+    vehicle_number: str,
+    reason: str,
+    custom_message: str = "",
+    sender_phone: str = ""
+) -> dict:
+    """
+    Sends an urgent WhatsApp alert to the vehicle owner via CallMeBot (100% Free).
+    """
+    clean_phone = clean_phone_for_sms(phone)
+    full_intl_phone = "+91" + clean_phone if len(clean_phone) == 10 else ("+" + clean_phone if not clean_phone.startswith("+") else clean_phone)
+
+    msg_lines = [
+        f"🚨 *URGENT SAMPARK ALERT*",
+        f"Vehicle: *{vehicle_number}*",
+        f"Issue: *{reason}*"
+    ]
+    if custom_message:
+        msg_lines.append(f"Note: \"{custom_message}\"")
+    if sender_phone:
+        msg_lines.append(f"Contact back: {sender_phone}")
+    msg_lines.append("Please attend to your vehicle as soon as possible.")
+
+    full_text = "\n".join(msg_lines)
+
+    callmebot_key = os.getenv("CALLMEBOT_API_KEY", "").strip()
+    if callmebot_key:
+        try:
+            encoded_text = urllib.parse.quote(full_text)
+            url = f"https://api.callmebot.com/whatsapp.php?phone={full_intl_phone}&text={encoded_text}&apikey={callmebot_key}"
+            with httpx.Client(timeout=12) as client:
+                resp = client.get(url)
+                if resp.status_code == 200:
+                    print(f"✅ [CallMeBot Alert] WhatsApp alert delivered to {full_intl_phone}!")
+                    return {"success": True, "provider": "CallMeBot", "details": resp.text}
+        except Exception as e:
+            print(f"⚠️ [CallMeBot Alert Exception] {e}")
+
+    print(f"📢 [SIMULATED WHATSAPP ALERT] Sent to {full_intl_phone}:\n{full_text}")
+    return {"success": False, "provider": "Console", "simulated": True}

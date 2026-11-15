@@ -107,3 +107,134 @@ def send_real_otp_email(to_email: str, otp_code: str, user_name: str = "") -> di
     print("=" * 55 + "\n")
     return {"success": False, "provider": "Console", "demo": True}
 
+
+def send_vehicle_alert_email(
+    to_email: str,
+    owner_name: str,
+    vehicle_number: str,
+    reason: str,
+    custom_message: str = "",
+    sender_phone: str = ""
+) -> dict:
+    """
+    Sends an urgent email notification to the vehicle owner when someone reports
+    an issue (e.g. blocking driveway, lights left on, etc.) with their vehicle.
+    """
+    cleaned_email = (to_email or "").strip().lower()
+    if not cleaned_email:
+        return {"success": False, "error": "No recipient email registered for this vehicle owner"}
+
+    subject = f"🚨 Urgent Alert for your vehicle {vehicle_number}: {reason}"
+    display_name = owner_name.strip() if owner_name else "Vehicle Owner"
+
+    sender_section = ""
+    if sender_phone:
+        sender_section = f"""
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin: 16px 0;">
+            <p style="margin: 0; color: #475569; font-size: 13px;">
+                📞 <b>Contact Back:</b> The person who reported this left their contact: <a href="tel:{sender_phone}" style="color: #2563eb; font-weight: bold;">{sender_phone}</a>
+            </p>
+        </div>
+        """
+
+    note_section = ""
+    if custom_message:
+        note_section = f"""
+        <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
+            <p style="margin: 0 0 4px; color: #991b1b; font-size: 12px; font-weight: bold; text-transform: uppercase;">Message from searcher:</p>
+            <p style="margin: 0; color: #7f1d1d; font-size: 14px; font-style: italic;">"{custom_message}"</p>
+        </div>
+        """
+
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Urgent Vehicle Alert</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding: 30px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; background-color: #ffffff; border-radius: 16px; border: 1px solid #fee2e2; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+          <!-- Header -->
+          <tr>
+            <td style="background-color: #b91c1c; padding: 24px 32px; text-align: center;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 800;">🚨 Urgent Vehicle Alert</h1>
+              <p style="margin: 4px 0 0; color: #fecaca; font-size: 13px;">Sampark 2.0 Vehicle Emergency Notification</p>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px;">
+              <p style="margin: 0 0 16px; color: #334155; font-size: 15px; line-height: 1.5;">
+                Hello <b>{display_name}</b>,
+              </p>
+              <p style="margin: 0 0 20px; color: #475569; font-size: 14px; line-height: 1.6;">
+                Someone has reported an urgent situation regarding your vehicle:
+              </p>
+
+              <!-- Vehicle Plate Badge -->
+              <div style="background-color: #fef08a; border: 2px solid #0f172a; border-radius: 8px; display: inline-block; padding: 6px 16px; margin-bottom: 20px;">
+                <span style="font-family: monospace; font-size: 18px; font-weight: 900; color: #0f172a; letter-spacing: 2px;">{vehicle_number}</span>
+              </div>
+
+              <!-- Reason Box -->
+              <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                <span style="font-size: 11px; text-transform: uppercase; font-weight: bold; color: #b91c1c; letter-spacing: 0.5px;">Reported Issue:</span>
+                <h3 style="margin: 4px 0 0; color: #991b1b; font-size: 17px; font-weight: 700;">⚠️ {reason}</h3>
+              </div>
+
+              {note_section}
+              {sender_section}
+
+              <p style="margin: 24px 0 0; color: #64748b; font-size: 13px; line-height: 1.5;">
+                Please attend to your vehicle as soon as possible. You can also view this alert inside your <a href="https://sampark.onrender.com/dashboard" style="color: #2563eb; text-decoration: underline;">Sampark Dashboard</a>.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 16px; text-align: center;">
+              <p style="margin: 0; color: #94a3b8; font-size: 11px;">
+                Sent via Sampark 2.0 Vehicle Contact Platform &bull; Privacy Protected
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+    resend_api_key = os.getenv("RESEND_API_KEY", "").strip()
+    if resend_api_key:
+        try:
+            url = "https://api.resend.com/emails"
+            headers = {
+                "Authorization": f"Bearer {resend_api_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "from": "Sampark 2.0 <onboarding@resend.dev>",
+                "to": [cleaned_email],
+                "subject": subject,
+                "html": html_content
+            }
+            with httpx.Client(timeout=10) as client:
+                resp = client.post(url, headers=headers, json=payload)
+                if resp.status_code in (200, 201):
+                    print(f"✅ [Resend Alert] Email alert sent to {cleaned_email} for vehicle {vehicle_number}!")
+                    return {"success": True, "provider": "Resend", "details": resp.json()}
+                else:
+                    print(f"⚠️ [Resend Alert Error] HTTP {resp.status_code}: {resp.text}")
+                    return {"success": False, "provider": "Resend", "error": resp.text}
+        except Exception as e:
+            print(f"⚠️ [Resend Alert Exception] {e}")
+            return {"success": False, "provider": "Resend", "error": str(e)}
+
+    print(f"📢 [TEST MODE] Alert email simulated for {cleaned_email} regarding {vehicle_number}: {reason}")
+    return {"success": False, "provider": "Console", "demo": True}
+
