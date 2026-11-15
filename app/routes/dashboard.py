@@ -83,6 +83,66 @@ def resolve_alert(
         status_code=status.HTTP_303_SEE_OTHER
     )
 
+@router.get("/api/alerts/live")
+def get_live_alerts(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Real-time polling endpoint for in-app alert popups and mobile push notifications.
+    """
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return {"logged_in": False, "alerts": []}
+
+    vehicles = db.query(Vehicle).filter(Vehicle.user_id == current_user.id).all()
+    v_ids = [v.id for v in vehicles]
+    if not v_ids:
+        return {"logged_in": True, "alerts": []}
+
+    unresolved_alerts = db.query(VehicleAlert).filter(
+        VehicleAlert.vehicle_id.in_(v_ids),
+        VehicleAlert.is_resolved == False
+    ).order_by(VehicleAlert.created_at.desc()).limit(5).all()
+
+    alert_list = []
+    for a in unresolved_alerts:
+        alert_list.append({
+            "id": a.id,
+            "vehicle_number": a.vehicle.vehicle_number if a.vehicle else "",
+            "reason": a.reason,
+            "message": a.message or "",
+            "sender_phone": a.sender_phone or "",
+            "created_at": a.created_at.strftime("%I:%M %p")
+        })
+
+    return {"logged_in": True, "alerts": alert_list}
+
+@router.post("/api/alert/resolve")
+def api_resolve_alert(
+    request: Request,
+    alert_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    """
+    AJAX endpoint to mark an alert as resolved directly from the in-app popup.
+    """
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return responses.JSONResponse(status_code=401, content={"success": False, "error": "Not logged in"})
+
+    alert = db.query(VehicleAlert).join(Vehicle).filter(
+        VehicleAlert.id == alert_id,
+        Vehicle.user_id == current_user.id
+    ).first()
+
+    if alert:
+        alert.is_resolved = True
+        db.commit()
+        return {"success": True, "message": "Alert marked as resolved"}
+
+    return responses.JSONResponse(status_code=404, content={"success": False, "error": "Alert not found"})
+
 @router.post("/dashboard/vehicle/add")
 def add_vehicle(
     request: Request,

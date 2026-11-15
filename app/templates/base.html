@@ -115,6 +115,224 @@
         </div>
     </footer>
 
+    {% if current_user %}
+    <!-- ============================================== -->
+    <!-- 🚨 Global Real-Time Emergency Alert Modal (Pop-up) -->
+    <!-- ============================================== -->
+    <div id="globalLiveAlertModal" class="hidden fixed inset-0 z-[100] overflow-y-auto bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="relative bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border-4 border-red-500 text-left transform animate-bounce-once">
+            <!-- Alert Icon with pulse ring -->
+            <div class="flex items-center gap-3.5 mb-4">
+                <div class="w-12 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-red-500/40 animate-pulse">
+                    <i data-lucide="bell-ring" class="w-7 h-7"></i>
+                </div>
+                <div>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-red-600 bg-red-50 px-2.5 py-0.5 rounded-full border border-red-200">
+                        🚨 Urgent Action Required!
+                    </span>
+                    <h2 class="text-xl font-black text-slate-900 mt-0.5">Vehicle Alert Received</h2>
+                </div>
+            </div>
+
+            <!-- Vehicle Plate Info -->
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between mb-4">
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Your Vehicle:</span>
+                <div class="inline-flex items-center border border-slate-900 bg-amber-300 text-slate-900 font-black rounded-lg overflow-hidden text-sm shadow-sm">
+                    <span class="bg-blue-800 text-white text-[9px] font-bold px-1.5 py-1">IND</span>
+                    <span id="liveAlertPlate" class="px-3 py-0.5 tracking-wider font-mono">PLATE</span>
+                </div>
+            </div>
+
+            <!-- Reported Issue Details -->
+            <div class="p-4 bg-red-50 border border-red-200 rounded-2xl space-y-2 mb-4">
+                <div class="flex items-start gap-2">
+                    <span class="text-lg">⚠️</span>
+                    <div>
+                        <span class="text-xs font-bold text-red-950 uppercase tracking-wider block">Reported Issue:</span>
+                        <p id="liveAlertReason" class="text-sm font-extrabold text-red-900 mt-0.5">Vehicle is blocking driveway</p>
+                    </div>
+                </div>
+
+                <div id="liveAlertMessageContainer" class="hidden pt-2 border-t border-red-200/80">
+                    <span class="text-[11px] font-bold text-red-800 block">Note from person waiting:</span>
+                    <p id="liveAlertMessage" class="text-xs text-red-900 italic mt-0.5 bg-white/70 p-2 rounded-xl">"..."</p>
+                </div>
+
+                <div id="liveAlertSenderContainer" class="hidden pt-2 border-t border-red-200/80">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-600 font-semibold">Caller Contact:</span>
+                        <a id="liveAlertSenderPhone" href="#" class="font-bold text-indigo-700 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 flex items-center gap-1 shadow-sm">
+                            <i data-lucide="phone" class="w-3 h-3 text-indigo-600"></i>
+                            <span id="liveAlertSenderPhoneText">Number</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="space-y-2">
+                <button
+                    type="button"
+                    id="btnResolveLiveAlert"
+                    onclick="resolveCurrentLiveAlert()"
+                    class="w-full py-3.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-black rounded-2xl shadow-lg shadow-red-500/25 active:scale-[0.98] transition flex items-center justify-center gap-2 text-sm"
+                >
+                    <i data-lucide="check-circle" class="w-4 h-4"></i>
+                    <span>✓ I'm on my way / Mark Handled</span>
+                </button>
+                <button
+                    type="button"
+                    onclick="dismissLiveAlertModal()"
+                    class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
+                >
+                    Dismiss for now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Polling & Audio Tone Script -->
+    <script>
+    let activeLiveAlertId = null;
+    let acknowledgedAlerts = new Set();
+
+    // Ask for browser notification permission
+    if ("Notification" in window && Notification.permission === "default") {
+        setTimeout(() => {
+            Notification.requestPermission();
+        }, 2000);
+    }
+
+    // Web Audio API emergency chime
+    function playEmergencySound() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const now = ctx.currentTime;
+            
+            // Beep 1
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'triangle';
+            osc1.frequency.setValueAtTime(880, now); // A5
+            gain1.gain.setValueAtTime(0.3, now);
+            gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            osc1.start(now);
+            osc1.stop(now + 0.25);
+
+            // Beep 2
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(1174.66, now + 0.28); // D6
+            gain2.gain.setValueAtTime(0.35, now + 0.28);
+            gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.65);
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.start(now + 0.28);
+            osc2.stop(now + 0.65);
+        } catch (e) {
+            console.log("Audio alert not allowed without prior interaction:", e);
+        }
+    }
+
+    async function checkLiveAlerts() {
+        try {
+            const resp = await fetch('/api/alerts/live');
+            const data = await resp.json();
+
+            if (data.logged_in && data.alerts && data.alerts.length > 0) {
+                const latest = data.alerts[0];
+
+                if (!acknowledgedAlerts.has(latest.id)) {
+                    showLiveAlertPopup(latest);
+                }
+            }
+        } catch (e) {
+            // Quiet network error
+        }
+    }
+
+    function showLiveAlertPopup(alert) {
+        activeLiveAlertId = alert.id;
+        document.getElementById('liveAlertPlate').textContent = alert.vehicle_number;
+        document.getElementById('liveAlertReason').textContent = alert.reason;
+
+        const msgBox = document.getElementById('liveAlertMessageContainer');
+        if (alert.message && alert.message.trim()) {
+            document.getElementById('liveAlertMessage').textContent = `"${alert.message}"`;
+            msgBox.classList.remove('hidden');
+        } else {
+            msgBox.classList.add('hidden');
+        }
+
+        const senderBox = document.getElementById('liveAlertSenderContainer');
+        if (alert.sender_phone && alert.sender_phone.trim()) {
+            const phoneLink = document.getElementById('liveAlertSenderPhone');
+            phoneLink.href = `tel:${alert.sender_phone}`;
+            document.getElementById('liveAlertSenderPhoneText').textContent = alert.sender_phone;
+            senderBox.classList.remove('hidden');
+        } else {
+            senderBox.classList.add('hidden');
+        }
+
+        // Show Modal
+        document.getElementById('globalLiveAlertModal').classList.remove('hidden');
+
+        // Play alert audio
+        playEmergencySound();
+
+        // Trigger phone vibration if on mobile
+        if ("vibrate" in navigator) {
+            navigator.vibrate([300, 100, 300, 100, 500]);
+        }
+
+        // Trigger OS / Phone Notification
+        if ("Notification" in window && Notification.permission === "granted") {
+            try {
+                new Notification(`🚨 Urgent: ${alert.vehicle_number}`, {
+                    body: `${alert.reason} - ${alert.message || 'Please attend to your vehicle!'}`,
+                    icon: '/favicon.ico',
+                    requireInteraction: true
+                });
+            } catch (err) {}
+        }
+
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function dismissLiveAlertModal() {
+        if (activeLiveAlertId) {
+            acknowledgedAlerts.add(activeLiveAlertId);
+        }
+        document.getElementById('globalLiveAlertModal').classList.add('hidden');
+    }
+
+    async function resolveCurrentLiveAlert() {
+        if (!activeLiveAlertId) return;
+
+        try {
+            const formData = new FormData();
+            formData.append("alert_id", activeLiveAlertId);
+            await fetch("/api/alert/resolve", {
+                method: "POST",
+                body: formData
+            });
+            acknowledgedAlerts.add(activeLiveAlertId);
+        } catch (e) {}
+
+        document.getElementById('globalLiveAlertModal').classList.add('hidden');
+        window.location.reload();
+    }
+
+    // Poll every 3.5 seconds
+    setInterval(checkLiveAlerts, 3500);
+    // Initial check after 1 second
+    setTimeout(checkLiveAlerts, 1000);
+    </script>
+    {% endif %}
+
     <script>
         lucide.createIcons();
     </script>

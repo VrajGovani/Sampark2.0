@@ -497,15 +497,48 @@ async function submitUrgentAlert(event) {
         statusBox.classList.remove('hidden');
 
         if (data.success) {
-            statusBox.className = "mt-4 p-4 bg-emerald-50 border-2 border-emerald-300 text-emerald-900 rounded-2xl text-xs flex items-center gap-3 shadow-md";
+            const cleanPhone = data.clean_wa_phone || "";
+            const urgentMsg = `🚨 URGENT SAMPARK ALERT: Notice for vehicle ${data.vehicle_number || ''}: ${data.reason || 'Urgent attention required'}.${data.custom_message ? ' Note: "' + data.custom_message + '"' : ''} Please attend to your vehicle immediately.`;
+            const encodedMsg = encodeURIComponent(urgentMsg);
+
+            let directActions = "";
+            if (cleanPhone) {
+                directActions = `
+                <div class="pt-3 border-t border-emerald-200">
+                    <span class="font-extrabold text-xs text-slate-800 block mb-1.5">⚡ Also Send Directly to Owner's Phone:</span>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <a
+                            href="https://wa.me/91${cleanPhone}?text=${encodedMsg}"
+                            target="_blank"
+                            class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow transition"
+                        >
+                            <i data-lucide="message-circle" class="w-4 h-4"></i>
+                            <span>Open WhatsApp Alert</span>
+                        </a>
+                        <a
+                            href="sms:+91${cleanPhone}?body=${encodedMsg}"
+                            class="py-2.5 px-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow transition"
+                        >
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                            <span>Send Direct SMS</span>
+                        </a>
+                    </div>
+                </div>
+                `;
+            }
+
+            statusBox.className = "mt-4 p-4 bg-emerald-50 border-2 border-emerald-400 text-emerald-950 rounded-2xl text-xs shadow-md space-y-3";
             statusBox.innerHTML = `
-                <div class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                        <i data-lucide="check-circle" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <span class="font-extrabold text-sm block text-emerald-950">🚨 Alert Dispatched to Owner!</span>
+                        <span class="text-xs text-emerald-800">${data.message}</span>
+                    </div>
                 </div>
-                <div>
-                    <span class="font-extrabold text-sm block text-emerald-950">🚨 Alert Dispatched Successfully!</span>
-                    <span class="text-xs text-emerald-800">${data.message}</span>
-                </div>
+                ${directActions}
             `;
             form.reset();
         } else {

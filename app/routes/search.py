@@ -339,8 +339,12 @@ def api_send_alert(
 
     return {
         "success": True,
-        "message": f"🚨 Urgent alert successfully dispatched for vehicle {clean_v}! The owner has been notified on their Sampark dashboard and alert channels.",
-        "alert_id": alert.id
+        "message": f"🚨 Urgent alert successfully dispatched for vehicle {clean_v}! The owner has been notified on their Sampark dashboard.",
+        "alert_id": alert.id,
+        "clean_wa_phone": format_whatsapp_phone(vehicle.contact_phone),
+        "vehicle_number": clean_v,
+        "reason": reason.strip(),
+        "custom_message": message.strip() if message else ""
     }
 
 
