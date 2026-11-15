@@ -119,89 +119,91 @@
                     <!-- Masked Alert Status Alert Box -->
                     <div id="alertStatusBox" class="hidden mt-4 p-4 rounded-2xl text-xs font-semibold"></div>
 
-                    <!-- Direct Action Buttons: Urgent Alert (Primary) & Masked Call (Secondary) -->
+                    <!-- Direct Action Buttons: WhatsApp (Primary - Rings Phone) & In-App Alert (Secondary) -->
                     <div class="mt-6 space-y-3">
-                        <!-- Primary: 100% Free Masked Urgent Alert -->
-                        <button
-                            type="button"
-                            id="btnOpenAlertModal"
-                            onclick="openAlertModal('{{ vehicle.vehicle_number }}')"
-                            class="w-full bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-700 hover:to-amber-700 active:scale-[0.98] text-white font-extrabold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-red-500/25 transition text-sm group"
+                        <!-- Primary: Instant WhatsApp Alert (Guaranteed to Ring & Vibrate Phone) -->
+                        <a
+                            href="https://wa.me/{{ clean_wa_phone }}?text=🚨%20URGENT%20SAMPARK%20ALERT:%20Hello,%20I%20am%20trying%20to%20reach%20you%20regarding%20your%20vehicle%20({{ vehicle.vehicle_number }}).%20Please%20attend%20to%20your%20car%20immediately."
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-extrabold py-4 px-4 rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/30 transition text-sm group"
                         >
-                            <i data-lucide="bell-ring" class="w-5 h-5 group-hover:animate-bounce"></i>
-                            <span>🚨 Send Urgent Alert to Owner (Free & Masked)</span>
-                        </button>
+                            <i data-lucide="message-circle" class="w-5 h-5 group-hover:scale-110 transition"></i>
+                            <span class="text-base tracking-wide">💬 Send WhatsApp Alert (Rings Owner's Phone)</span>
+                        </a>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                            <!-- Uber-Style Masked Call Button -->
+                            <!-- Direct SMS Trigger -->
+                            <a
+                                href="sms:+{{ clean_wa_phone }}?body=🚨%20URGENT%20SAMPARK%20ALERT:%20Notice%20regarding%20your%20vehicle%20{{ vehicle.vehicle_number }}.%20Please%20attend%20to%20your%20car%20immediately."
+                                class="w-full bg-slate-900 hover:bg-black active:scale-[0.98] text-white font-bold py-3 px-3 rounded-xl flex items-center justify-center gap-2 shadow-sm transition text-xs"
+                            >
+                                <i data-lucide="send" class="w-3.5 h-3.5 text-slate-300"></i>
+                                <span>📱 Send Direct SMS</span>
+                            </a>
+
+                            <!-- Custom In-App Alert Modal -->
                             <button
                                 type="button"
-                                id="btnMaskedCall"
-                                onclick="placeMaskedCall('{{ vehicle.vehicle_number }}')"
-                                class="w-full bg-slate-100 hover:bg-slate-200 active:scale-[0.98] text-slate-800 font-bold py-3 px-3 rounded-xl flex items-center justify-center gap-2 border border-slate-300 transition text-xs"
+                                id="btnOpenAlertModal"
+                                onclick="openAlertModal('{{ vehicle.vehicle_number }}')"
+                                class="w-full bg-rose-50 hover:bg-rose-100 active:scale-[0.98] text-rose-800 font-bold py-3 px-3 rounded-xl flex items-center justify-center gap-2 border border-rose-200 transition text-xs"
                             >
-                                <i data-lucide="phone-call" class="w-3.5 h-3.5 text-indigo-600"></i>
-                                <span id="btnMaskedCallText">📞 Masked Voice Call</span>
+                                <i data-lucide="bell" class="w-3.5 h-3.5 text-rose-600"></i>
+                                <span>🚨 Custom In-App Alert</span>
                             </button>
-
-                            <!-- WhatsApp Message -->
-                            <a
-                                href="https://wa.me/{{ clean_wa_phone }}?text=Hello,%20I%20am%20trying%20to%20reach%20you%20regarding%20your%20vehicle%20({{ vehicle.vehicle_number }})."
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="w-full bg-emerald-50 hover:bg-emerald-100 active:scale-[0.98] text-emerald-800 font-bold py-3 px-3 rounded-xl flex items-center justify-center gap-2 border border-emerald-300 transition text-xs"
-                            >
-                                <i data-lucide="message-circle" class="w-3.5 h-3.5 text-emerald-600"></i>
-                                <span>WhatsApp Message</span>
-                            </a>
                         </div>
                     </div>
 
-                    <!-- Quick Emergency Preset Triggers -->
+                    <!-- Quick 1-Tap Emergency WhatsApp Triggers -->
                     <div class="mt-6 pt-5 border-t border-slate-100">
                         <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2.5">
-                            ⚡ Quick 1-Tap Emergency Alerts:
+                            ⚡ Quick 1-Tap Emergency WhatsApp Alerts (Rings Phone):
                         </span>
                         <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
-                            <!-- Alert 1 -->
-                            <button
-                                type="button"
-                                onclick="openAlertModal('{{ vehicle.vehicle_number }}', 'Vehicle is blocking my car / driveway')"
-                                class="p-2.5 rounded-xl border border-slate-200 hover:border-red-400 bg-slate-50 hover:bg-red-50/50 text-slate-700 hover:text-red-700 transition flex items-center gap-1.5 text-left"
+                            <!-- Alert 1: Blocking Way -->
+                            <a
+                                href="https://wa.me/{{ clean_wa_phone }}?text=🚨%20URGENT%20SAMPARK%20ALERT:%20Hello,%20your%20vehicle%20{{ vehicle.vehicle_number }}%20is%20currently%20blocking%20my%20car/driveway.%20Please%20move%20it%20at%20your%20earliest%20convenience."
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="p-3 rounded-xl border border-emerald-200 hover:border-emerald-500 bg-emerald-50/60 hover:bg-emerald-50 text-emerald-900 transition flex items-center gap-2 shadow-sm hover:shadow"
                             >
-                                <span>🚗</span>
-                                <span class="truncate">Car Blocking Way</span>
-                            </button>
+                                <span class="text-base">🚗</span>
+                                <span class="truncate font-bold">Car Blocking Way</span>
+                            </a>
 
-                            <!-- Alert 2 -->
-                            <button
-                                type="button"
-                                onclick="openAlertModal('{{ vehicle.vehicle_number }}', 'Window left open / flat tyre')"
-                                class="p-2.5 rounded-xl border border-slate-200 hover:border-amber-400 bg-slate-50 hover:bg-amber-50/50 text-slate-700 hover:text-amber-700 transition flex items-center gap-1.5 text-left"
+                            <!-- Alert 2: Window Left Open -->
+                            <a
+                                href="https://wa.me/{{ clean_wa_phone }}?text=⚠️%20SAMPARK%20NOTICE:%20Notice%20regarding%20your%20vehicle%20{{ vehicle.vehicle_number }}:%20one%20of%20your%20windows%20is%20left%20open%20or%20flat%20tyre.%20Please%20check."
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="p-3 rounded-xl border border-amber-200 hover:border-amber-500 bg-amber-50/60 hover:bg-amber-50 text-amber-900 transition flex items-center gap-2 shadow-sm hover:shadow"
                             >
-                                <span>🪟</span>
-                                <span class="truncate">Window Left Open</span>
-                            </button>
+                                <span class="text-base">🪟</span>
+                                <span class="truncate font-bold">Window Open / Tyre</span>
+                            </a>
 
-                            <!-- Alert 3 -->
-                            <button
-                                type="button"
-                                onclick="openAlertModal('{{ vehicle.vehicle_number }}', 'Headlights or cabin lights left ON')"
-                                class="p-2.5 rounded-xl border border-slate-200 hover:border-amber-400 bg-slate-50 hover:bg-amber-50/50 text-slate-700 hover:text-amber-700 transition flex items-center gap-1.5 text-left"
+                            <!-- Alert 3: Headlights On -->
+                            <a
+                                href="https://wa.me/{{ clean_wa_phone }}?text=⚠️%20SAMPARK%20NOTICE:%20Notice%20regarding%20your%20vehicle%20{{ vehicle.vehicle_number }}:%20your%20headlights%20or%20cabin%20lights%20are%20currently%20turned%20on."
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="p-3 rounded-xl border border-amber-200 hover:border-amber-500 bg-amber-50/60 hover:bg-amber-50 text-amber-900 transition flex items-center gap-2 shadow-sm hover:shadow"
                             >
-                                <span>💡</span>
-                                <span class="truncate">Headlights On</span>
-                            </button>
+                                <span class="text-base">💡</span>
+                                <span class="truncate font-bold">Headlights ON</span>
+                            </a>
 
-                            <!-- Alert 4 -->
-                            <button
-                                type="button"
-                                onclick="openAlertModal('{{ vehicle.vehicle_number }}', 'Car alarm is ringing or towing risk')"
-                                class="p-2.5 rounded-xl border border-red-200 hover:border-red-400 bg-red-50/50 hover:bg-red-50 text-red-700 transition flex items-center gap-1.5 text-left"
+                            <!-- Alert 4: Alarm / Towing -->
+                            <a
+                                href="https://wa.me/{{ clean_wa_phone }}?text=🚨%20URGENT%20SAMPARK%20ALERT:%20Your%20vehicle%20{{ vehicle.vehicle_number }}%20alarm%20is%20ringing%20or%20is%20at%20risk%20of%20being%20towed!%20Please%20attend%20immediately."
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="p-3 rounded-xl border border-red-200 hover:border-red-500 bg-red-50/60 hover:bg-red-50 text-red-900 transition flex items-center gap-2 shadow-sm hover:shadow"
                             >
-                                <span>🚨</span>
-                                <span class="truncate">Alarm / Towing Risk</span>
-                            </button>
+                                <span class="text-base">🚨</span>
+                                <span class="truncate font-bold">Alarm / Towing Risk</span>
+                            </a>
                         </div>
                     </div>
                 </div>
