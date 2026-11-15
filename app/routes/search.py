@@ -2,13 +2,14 @@ import re
 import urllib.parse
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Request, Depends, Query, responses, status
+from fastapi import APIRouter, Request, Depends, Query, Form, responses, status
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Vehicle, SearchLog
 from ..auth import get_current_user, clean_vehicle_number
 from ..templates_engine import templates
+from ..voice import initiate_masked_call
 
 router = APIRouter()
 
@@ -158,3 +159,73 @@ def api_search(
         "masked_phone": mask_phone_number(vehicle.contact_phone),
         "notes": vehicle.notes
     }
+
+# Masked Calling API Endpoint (Uber-style)
+@router.post("/api/call/mask")
+def api_masked_call(
+    request: Request,
+    vehicle_number: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return responses.JSONResponse(
+            status_code=401,
+            content={"success": False, "error": "Please sign in first to place a masked call."}
+        )
+
+    clean_v = clean_vehicle_number(vehicle_number)
+    vehicle = db.query(Vehicle).filter(
+        Vehicle.vehicle_number == clean_v,
+        Vehicle.is_active == True
+    ).first()
+
+    if not vehicle:
+        return responses.JSONResponse(
+            status_code=404,
+            content={"success": False, "error": "Vehicle not found or owner has paused contact."}
+        )
+
+    # Check if user is trying to call themselves
+    if vehicle.user_id == current_user.id:
+        return responses.JSONResponse(
+            status_code=400,
+            content={"success": False, "error": "This is your own registered vehicle! You cannot call yourself."}
+        )
+
+    caller_phone = current_user.phone
+    owner_phone = vehicle.contact_phone
+
+    # Initiate masked call bridging via Twilio
+    result = initiate_masked_call(
+        caller_phone=caller_phone,
+        owner_phone=owner_phone,
+        vehicle_number=clean_v
+    )
+
+    # Log search/call event
+    try:
+        log_entry = SearchLog(
+            vehicle_id=vehicle.id,
+            searched_by_id=current_user.id
+        )
+        db.add(log_entry)
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    if result.get("success"):
+        return {
+            "success": True,
+            "message": "📞 Call initiated! Pick up your ringing phone to speak with the vehicle owner.",
+            "details": result
+        }
+    else:
+        return responses.JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": result.get("error", "Failed to initiate call.")
+            }
+        )
+

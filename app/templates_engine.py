@@ -22,3 +22,4 @@ class SafeJinja2Templates(Jinja2Templates):
         return super().TemplateResponse(*args, **kwargs)
 
 templates = SafeJinja2Templates(directory=str(TEMPLATE_DIR))
+
